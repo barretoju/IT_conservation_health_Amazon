@@ -1,2 +1,76 @@
-# amazon_health_conservation_IT
-Data and code for reproducing the analyses contained in the study "Indigenous territories are important for safeguarding human health on the Amazon Region."
+---
+title: "Indigenous Tierritories (IT) Conservation & Health in the Amazon (IT_conservation_health_amazon)"
+author: "Julia R Barreto"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    thumbnails: false
+    lightbox: true
+    gallery: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Description:
+This repository contains all data and code necessary to reproduce the analyses presented in the paper, "Indigenous territories are important for safeguarding human health in the Amazon Region." The study explores the relationship between indigenous territories (ITs) and health outcomes across the Pan-Amazonian region, focusing on fire-related and zoonotic diseases. The repository includes comprehensive datasets, R scripts, and model outputs, covering the full research workflow from data management to statistical analysis and model validation.
+
+# Contents:
+
+1. **Health Data:**
+   - **Disease Cases:** Municipality-level data on 21 fire-related and zoonotic/vector-borne diseases for Amazonian countries.
+   - **Population Data:** Population estimates at the municipality level, sourced from the WorldPop project and extrapolated annually.
+
+2. **Environmental Data:**
+   - **Forest Fires:** Yearly fire data from MODIS Terra, detailing the frequency and extent of fires across the Amazon.
+   - **PM2.5 Concentrations:** AOD-calibrated PM2.5 estimates based on MODIS MAIAC data, calibrated with SEDAC PM2.5, including transboundary effects within a 500 km radius.
+
+3. **Land Use and Land Cover Data:**
+   - **Land Cover Classifications:** Data extracted from the MapBiomas Amazon mapping project, detailing forest and savanna cover across the Amazon.
+   - **Landscape Metrics:** Composition and configuration metrics (e.g., forest cover, fragmentation indices) for each municipality, calculated using Fragstats, R, and ArcGIS.
+
+4. **Socioeconomic Indicators:**
+   - **Human Development Index (HDI):** Country-specific HDI data, adjusted for subnational variations, sourced from the Global Data Lab.
+
+5. **Codes for Statistical Analysis:**
+   - **Generalized Additive Models (GAMs):** R scripts implementing GAMs to assess the impact of PM2.5 on disease incidence, considering spatial and temporal autocorrelation.
+   - **Generalized Linear Mixed Models (GLMMs):** Models evaluating the influence of ITs, forest cover, and other landscape metrics on disease occurrence and incidence.
+
+6. **Model Validation and Diagnostics:**
+   - **Model Diagnostics:** Scripts for model evaluation using DHARMa, and visualization of predictions with ggeffects.
+
+**How to Use:**
+- The repository is organized into directories for each major component (data, analysis, figures, scripts). Users can follow the R scripts in the `analysis/` directory to replicate the statistical models and generate the figures presented in the paper.
+
+**Access and Citation:**
+- Table below shows summary of health data sources by country for the study. Where possible, data links are provided for public datasets. Proprietary or sensitive datasets not publicly available are described with instructions for how to request access.
+
+| Country        | Spatial Scale | Disease Group               | Health Aspects Considered                                                                 | Temporal Scale | Source                                                          | Link to Download                                                                                                                                      |
+|----------------|--------------|-----------------------------|--------------------------------------------------------------------------------------------|----------------|-----------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Bolivia        | Municipality | Cardiovascular               | Cardiovascular                                                                              | 2001-2019      | Ministerio de Salud y Deportes                                    | [Link](https://estadisticas.minsalud.gob.bo/Default_Vigilancia.aspx)                                                                                   |
+|                |              | Respiratory                  | Pneumonia; respiratory symptomatic; Other acute upper respiratory tract infections         | 2001-2019      |                                                                 |                                                                                                                                                        |
+|                |              | Zoonotic and vector-borne     | Chagas, Malaria, Cutaneous leishmaniasis                                                    | 2001-2019      |                                                                 |                                                                                                                                                        |
+| Brazil         | Municipality | Cardiovascular               | Conduct disorders and cardiac arrhythmias; cerebral infarction; acute myocardial infarction; conjunctivitis and other conjunctival disorders | 2008-2023      | Brazilian Ministry of Health                                      | [Link](https://datasus.saude.gov.br/acesso-a-informacao/doencas-e-agravos-de-notificacao-de-2007-em-diante-sinan/)                                    |
+|                |              | Respiratory                  | Bronchial emphysema; Other chronic obstructive pulmonary diseases; pneumonia, pharyngitis; tonsillitis; laryngitis; tracheitis; acute bronchitis and bronchiolitis; other acute upper respiratory tract infections; neoplasm of trachea, bronchi, and lungs; pulmonary embolism | 2008-2023      |                                                                 |                                                                                                                                                        |
+|                |              | Zoonotic and vector-borne     | Chagas, Cutaneous leishmaniasis, visceral leishmaniasis, hantavirus, Malaria                | 2008-2023      |                                                                 |                                                                                                                                                        |
+| Colombia       | Municipality | Cardiovascular               | Conduction disorders and cardiac arrhythmias; conjunctivitis and other conjunctival disorders; cerebral infarction; acute myocardial infarction | 2007-2019      | Instituto Nacional de Salud                                       | [Link](https://portalsivigila.ins.gov.co/Paginas/Buscador.aspx)                                                                                        |
+|                |              | Respiratory                  | Acute bronchitis and bronchiolitis; Other chronic obstructive pulmonary diseases; pneumonia; pharyngitis; tonsillitis; laryngitis; tracheitis; pulmonary embolism | 2007-2019      |                                                                 |                                                                                                                                                        |
+|                |              | Zoonotic and vector-borne     | Chagas; Cutaneous leishmaniasis; Malaria; rickettsia                                       | 2007-2019      |                                                                 |                                                                                                                                                        |
+| Ecuador        | Paroquia      | Cardiovascular               | Cerebral infarction; Conduct disorders and cardiac arrhythmias; acute myocardial infarction | 2015, 2016, 2019, 2020 | Instituto Nacional de Estadistica y Censos                            | [Link](https://www.ecuadorencifras.gob.ec/camas-y-egresos-hospitalarios/)                                                                            |
+|                |              | Respiratory                  | Other acute upper respiratory tract infections; Bronchial emphysema; bronchitis; Other chronic obstructive pulmonary diseases; laryngitis; Neoplasm of trachea, bronchi, and lungs; pharyngitis; pneumonia; tonsillitis; tracheitis | 2015, 2016, 2019, 2021 |                                                                 |                                                                                                                                                        |
+|                |              | Zoonotic and vector-borne     | Chagas; Cutaneous leishmaniasis; Malaria; rickettsia; Visceral leishmaniasis                | 2015, 2016, 2019, 2022 |                                                                 |                                                                                                                                                        |
+| French Guiana  | Municipality | Cardiovascular               | Cerebral infarction; Conduct disorders and cardiac arrhythmias; conjunctivitis; myocardial; Neoplasm of trachea, bronchi, and lungs; Pulmonary embolism | 2006-2023      | Health data hub and Pôle des Centres Délocalisés de Prévention et de Soin – Centre Hospitalier de Cayenne, Guyane, France (available under request) | [Link](https://www.health-data-hub.fr/depot)                                                                                                         |
+|                |              | Respiratory                  | Other acute upper respiratory tract infections; Bronchial emphysema; Other chronic obstructive pulmonary diseases; laryngitis; pharyngitis; pneumonia; tonsillitis | 2006-2023      |                                                                 |                                                                                                                                                        |
+|                |              | Zoonotic and vector-borne     | Chagas; cutaneous leishmaniasis; hantavirus; Malaria; rickettsia                            | 2006-2023      |                                                                 |                                                                                                                                                        |
+| Peru           | Municipality | Cardiovascular               | Cerebral infarction; Conduct disorders and cardiac arrhythmias                              | 2002-2019      | Ministerio de Salud                                               | [Link 1](https://www.gob.pe/minsa), [Link 2](https://www.minsa.gob.pe/portada/transparencia/solicitud/frmformulario.asp)                              |
+|                |              | Respiratory                  | Other acute upper respiratory tract infections; Bronchial emphysema; Conduct disorders and cardiac arrhythmias; bronchitis; laryngitis; pharyngitis; pneumonia; tonsillitis; tracheitis | 2002-2019      |                                                                 |                                                                                                                                                        |
+|                |              | Zoonotic and vector-borne     | Chagas; Cutaneous leishmaniasis; hantavirus; Malaria; rickettsia                            | 2000-2019      |                                                                 |                                                                                                                                                        |
+| Suriname       | Country       | Cardiovascular               | -                                                                                           | -              | Medical mission (healthcare provider) - data not available online | [Link](https://www.medischezending.sr)                                                                                                                |
+|                |              | Respiratory                  | Respiratory                                                                                 | 2000-2019      |                                                                 |                                                                                                                                                        |
+|                |              | Zoonotic and vector-borne     | Cutaneous leishmaniasis; Malaria                                                            | 2000-2019      |                                                                 |                                                                                                                                                        |
+| Venezuela      | Paroquia      | Cardiovascular               | -                                                                                           | -              | Ministerio para el Poder Popular de la Salud (MPPS), Venezuela (compiled by Grillet et al., 2021) | Grillet ME, Moreno JE, Hernández-Villena JV, Vincenti-González MF, Noya O, Tami A, Paniz-Mondolfi A, Llewellyn M, Lowe R, Escalante AA, Conn JE. Malaria in Southern Venezuela: The hottest hotspot in Latin America. PLoS Negl Trop Dis. 2021 Jan 25;15(1):e0008211. doi: 10.1371/journal.pntd.0008211 |
+|                |              | Respiratory                  | -                                                                                           | -              |                                                                 |                                                                                                                                                        |
+|                |              | Zoonotic and vector-borne     | Malaria                                                                                     | 1995-2017      |                                                                 |                                                                                                                                                        |
+
+- Please cite this repository if you use or adapt the code or data in your work.
