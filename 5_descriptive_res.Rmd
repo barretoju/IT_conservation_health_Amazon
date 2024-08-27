@@ -1,0 +1,1337 @@
+---
+title: "Descriptive results on temporal Amazon health data"
+author: "Julia Barreto"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    thumbnails: false
+    lightbox: true
+    gallery: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = F, message = F, warning = F, error= F)
+library(here)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(cowplot)
+theme_set(theme_cowplot())
+library(patchwork)
+library(sf)
+library(viridis)
+library(tmap)
+library(mapview)
+library(webshot)
+library(RColorBrewer)
+```
+
+## Data Loading and Preprocessing
+
+```{r}
+# Load data
+combined_data <- read.csv(here("data", "combined_data.csv"))
+
+# Summary of the data
+summary(combined_data)
+```
+
+Data structure:
+
+```{r}
+str(combined_data)
+```
+
+# General Amazon health in numbers
+
+Data per country and entire amazon, raw sum of combined_data dataset:
+```{r}
+combined_summarized_data <- read.csv(here("data", "combined_summarized_data.csv")) %>%
+  select(-X)
+
+# Display the combined summarized data
+print(combined_summarized_data)
+```
+
+```{r, echo= FALSE}
+# Filter the data for Total Amazon
+total_amazon_data <- combined_summarized_data %>%
+  filter(country == "Total Amazon")
+
+# Calculate the total number of cases for all health aspects
+total_cases <- total_amazon_data %>%
+  summarise(total_cases = sum(health, na.rm = TRUE))
+
+# Calculate the total number of zoonotic and vector-borne diseases cases
+total_zoonotic_cases <- total_amazon_data %>%
+  summarise(total_zoonotic_cases = sum(zoonotic, na.rm = TRUE))
+
+# Calculate the total number of fire-related conditions
+total_fire_related_cases <- total_amazon_data %>%
+  summarise(total_fire_related_cases = sum(fire_related, na.rm = TRUE))
+
+# Calculate the total number of respiratory diseases (fire-related)
+total_respiratory_cases <- total_amazon_data %>%
+  summarise(total_respiratory_cases = sum(respiratory, na.rm = TRUE))
+
+# Calculate the total number of cardiovascular diseases (fire-related)
+total_cardiovascular_cases <- total_amazon_data %>%
+  summarise(total_cardiovascular_cases = sum(cardiovascular, na.rm = TRUE))
+
+# Calculate the number of cases for each zoonotic disease
+(zoonotic_diseases <- total_amazon_data %>%
+  summarise(
+    total_chagas = sum(chagas, na.rm = TRUE),
+    total_hantavirus = sum(hantavirus, na.rm = TRUE),
+    total_cutaneous_leishmaniasis = sum(cutaneous_leishmaniasis, na.rm = TRUE),
+    total_visceral_leishmaniasis = sum(visceral_leishmaniasis, na.rm = TRUE),
+    total_rickettsia = sum(rickettsia, na.rm = TRUE),
+    total_malaria = sum(malaria, na.rm = TRUE)) %>%
+  pivot_longer(cols = everything(), names_to = "disease", values_to = "cases") %>%
+  arrange(desc(cases)))
+```
+
+Between the years 2001 and 2019, a total of `r total_cases$total_cases`
+cases of
+`r max(combined_summarized_data$n_zoo, na.rm= TRUE) + max(combined_summarized_data$n_fire, na.rm= TRUE)`
+health aspects were reported across the entire Amazon region. Among
+these, `r total_zoonotic_cases$total_zoonotic_cases` cases were of
+zoonotic and vector-borne diseases, with the majority being malaria
+reports
+(`r zoonotic_diseases$cases[zoonotic_diseases$disease== "total_malaria"]`
+cases). The second most common zoonotic disease was
+Cutaneous leishmaniasis with `r zoonotic_diseases$cases[2]`
+cases, followed by chagas disease (n= `r zoonotic_diseases$cases[3]`). Additionally, there were
+`r total_fire_related_cases$total_fire_related_cases` cases of
+fire-related conditions, of which
+`r total_respiratory_cases$total_respiratory_cases` were respiratory
+diseases, and `r total_cardiovascular_cases$total_cardiovascular_cases`
+were cardiovascular diseases.
+
+Now beyond the raw sum per country/region, get number of cases divided
+
+```{r}
+# Compute the average cases per year
+(annual_avg_cases <- combined_summarized_data %>%
+  filter(country != "Total Amazon") %>%
+  group_by(year) %>%
+  summarise(
+    avg_health = sum(health, na.rm = TRUE) / n_distinct(country[!is.na(health)]),
+    avg_zoonotic = sum(zoonotic, na.rm = TRUE) / n_distinct(country[!is.na(zoonotic)]),
+    avg_fire_related = sum(fire_related, na.rm = TRUE) / n_distinct(country[!is.na(fire_related)]),
+    avg_cardiovascular = sum(cardiovascular, na.rm = TRUE) / n_distinct(country[!is.na(cardiovascular)]),
+    avg_respiratory = sum(respiratory, na.rm = TRUE) / n_distinct(country[!is.na(respiratory)])
+  ))
+
+# Plotting temporal trends for the entire Amazon region
+ggplot(annual_avg_cases, aes(x = year)) +
+  geom_line(aes(y = avg_health, color = "Overall"), size = 1) +
+  geom_line(aes(y = avg_zoonotic, color = "Zoonotic Diseases"), size = 1) +
+  geom_line(aes(y = avg_fire_related, color = "Fire-related Diseases"), size = 1) +
+  # geom_line(aes(y = avg_cardiovascular, color = "Cardiovascular Diseases"), size = 1) +
+  # geom_line(aes(y = avg_respiratory, color = "Respiratory Diseases"), size = 1) +
+  scale_color_manual(values = c("Overall"= "#E3A1BD",
+                                "Zoonotic Diseases" = "#8E0B0B",
+                                "Fire-related Diseases" = "#578781")) +#,
+                                # "Cardiovascular Diseases" = "#8B0000", 
+                                # "Respiratory Diseases" = "#FFA500"))+
+  theme_minimal() +
+  labs(title = " ",
+       x = "Year",
+       y = "Number of Cases", # averaged by reporting countries
+       color = "Disease group") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom") +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20))
+
+# Save the plot
+ggsave(here("data", "descriptive_figs", "temporal_trends_amazon.png"), width = 12, height = 8)
+```
+
+
+## By zoonotic condition:
+```{r}
+# Calculate the total number of cases for each health aspect per year and divide by the number of reporting countries
+annual_zoo <- combined_summarized_data %>%
+  filter(country != "Total Amazon") %>%
+  group_by(year) %>%
+  summarise(
+    total_health = sum(health, na.rm = TRUE) / sum(!is.na(health)),
+    total_malaria = sum(malaria, na.rm = TRUE) / sum(!is.na(malaria)),
+    total_chagas = sum(chagas, na.rm = TRUE) / sum(!is.na(chagas)),
+    total_cutaneous_leishmaniasis = sum(cutaneous_leishmaniasis, na.rm = TRUE) / sum(!is.na(cutaneous_leishmaniasis)),
+    total_visceral_leishmaniasis = sum(visceral_leishmaniasis, na.rm = TRUE) / sum(!is.na(visceral_leishmaniasis)),
+    total_rickettsia = sum(rickettsia, na.rm = TRUE) / sum(!is.na(rickettsia)),
+    total_hanta = sum(hantavirus, na.rm = TRUE) / sum(!is.na(hantavirus))
+  )
+
+print(annual_zoo)
+```
+
+
+ONE PLOT ZOONOTIC:
+
+```{r, eval= FALSE}
+# Plotting temporal trends for each condition
+ggplot(annual_zoo, aes(x = year)) +
+  geom_line(aes(y = total_malaria, color = "Malaria"), size = 1) +
+  geom_line(aes(y = total_cutaneous_leishmaniasis, color = "Cutaneous Leishmaniasis"), size = 1) +
+  geom_line(aes(y = total_chagas, color = "Chagas Disease"), size = 1) +
+  geom_line(aes(y = total_visceral_leishmaniasis, color = "Visceral Leishmaniasis"), size = 1) +
+  geom_line(aes(y = total_rickettsia, color = "Rickettsia"), size = 1) +
+  geom_line(aes(y = total_hanta, color = "Hantavirus"), size = 1) +
+  scale_color_manual(values = c("Malaria" = "#134F49", 
+                                "Cutaneous Leishmaniasis" = "#376B66", 
+                                "Chagas Disease" = "#578781", 
+                                "Visceral Leishmaniasis" = "#A9CCC5", 
+                                "Rickettsia" = "#66CDAA",
+                                "Hantavirus"= "#D8F3EE")) +
+  theme_minimal() +
+  labs(title = "Temporal Trends of Specific Conditions in the Amazon Region",
+       x = "Year",
+       y = "Number of Cases",
+       color = "Zoonotic and vector-borne disease") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom") +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20))
+
+
+
+# Save the plot
+ggsave(here("data", "descriptive_figs", "temporal_zoo1.png"), width = 12, height = 8)
+```
+
+OU:
+
+
+```{r}
+# Pivot longer for easier plotting
+annual_cases_long <- annual_zoo %>%
+  pivot_longer(cols = -year, names_to = "disease", values_to = "cases")
+
+# Renaming the diseases for better readability in the plots
+annual_cases_long$disease <- factor(annual_cases_long$disease,
+                               levels = c("total_malaria", 
+                                          "total_cutaneous_leishmaniasis", 
+                                          "total_chagas", 
+                                          "total_visceral_leishmaniasis", 
+                                          "total_rickettsia", "total_hanta"),
+                               labels = c("(A) Malaria", 
+                                          "(B) Cutaneous Leishmaniasis", 
+                                          "(C) Chagas Disease", 
+                                          "(D) Visceral Leishmaniasis", 
+                                          "(E) Rickettsia", "(F) Hantavirus"))
+
+# Plotting temporal trends for each condition in separate panels
+(zoo_plot <- ggplot(annual_cases_long %>% drop_na(), aes(x = year, y = cases)) +
+  geom_line(color = "#8E0B0B", size = 1.5) +
+  facet_wrap(~disease, scales = "free_y") +
+  theme_minimal() +
+  labs(title = " ",
+       x = " ",
+       y = "Number of Cases") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 80, hjust = 1),
+        strip.text = element_text(size = 10),
+        legend.position = "none") +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20)))
+
+# Save the plot
+ggsave(here("data", "descriptive_figs", "temporal_zoonosis_panels.png"), width = 11, height = 6)
+```
+```{r, echo= FALSE}
+# Summarizing the trends
+malaria_trend <- annual_zoo %>%
+  summarise(
+    total_cases = sum(total_malaria, na.rm = TRUE),
+    peak_year = year[which.max(total_malaria)],
+    peak_value = max(total_malaria),
+    lowest_year = year[which.min(total_malaria)],
+    lowest_value = min(total_malaria),
+    avg_value = mean(total_malaria)
+  )
+
+chagas_trend <- annual_zoo %>%
+  summarise(
+    total_cases = sum(total_chagas, na.rm = TRUE),
+    peak_year = year[which.max(total_chagas)],
+    peak_value = max(total_chagas),
+    lowest_year = year[which.min(total_chagas)],
+    lowest_value = min(total_chagas),
+    avg_value = mean(total_chagas)
+  )
+
+cutaneous_leishmaniasis_trend <- annual_zoo %>%
+  summarise(
+    total_cases = sum(total_cutaneous_leishmaniasis, na.rm = TRUE),
+    peak_year = year[which.max(total_cutaneous_leishmaniasis)],
+    peak_value = max(total_cutaneous_leishmaniasis),
+    lowest_year = year[which.min(total_cutaneous_leishmaniasis)],
+    lowest_value = min(total_cutaneous_leishmaniasis),
+    avg_value = mean(total_cutaneous_leishmaniasis)
+  )
+
+visceral_leishmaniasis_trend <- annual_zoo %>%
+  summarise(
+    total_cases = sum(total_visceral_leishmaniasis, na.rm = TRUE),
+    peak_year = year[which.max(total_visceral_leishmaniasis)],
+    peak_value = max(total_visceral_leishmaniasis, na.rm= TRUE),
+    lowest_year = year[which.min(total_visceral_leishmaniasis)],
+    lowest_value = min(total_visceral_leishmaniasis, na.rm= TRUE),
+    avg_value = mean(total_visceral_leishmaniasis, na.rm= TRUE)
+  )
+
+rickettsia_trend <- annual_zoo %>%
+  summarise(
+    total_cases = sum(total_rickettsia, na.rm = TRUE),
+    peak_year = year[which.max(total_rickettsia)],
+    peak_value = max(total_rickettsia),
+    lowest_year = year[which.min(total_rickettsia)],
+    lowest_value = min(total_rickettsia),
+    avg_value = mean(total_rickettsia)
+  )
+
+hanta_trend <- annual_zoo %>%
+  summarise(
+    total_cases = sum(total_hanta, na.rm = TRUE),
+    peak_year = year[which.max(total_hanta)],
+    peak_value = max(total_hanta),
+    lowest_year = year[which.min(total_hanta)],
+    lowest_value = min(total_hanta),
+    avg_value = mean(total_hanta)
+  )
+
+# Print the trends for each condition
+print(malaria_trend)
+print(chagas_trend)
+print(cutaneous_leishmaniasis_trend)
+print(visceral_leishmaniasis_trend)
+print(rickettsia_trend)
+print(hanta_trend)
+```
+
+
+```{r}
+# Update the text based on the calculated trends
+zoo_text <- paste(
+  "Looking into specific zoonotic and vector-borne diseases, Malaria holds the majority of reported cases (n=", malaria_trend$total_cases, 
+  ") and is the only condition monitored by all eight countries (Table 1). Malaria cases have a fluctuating temporal trend over the timespan from 2001 to 2019 (Figure 3a), it peaked in ", malaria_trend$peak_year, 
+  " with ", malaria_trend$peak_value, " cases and reached its lowest in ", malaria_trend$lowest_year, " with ", malaria_trend$lowest_value, " cases. On average, there were ", malaria_trend$avg_value, " cases reported annually.\n",
+  
+  "The second most common zoonotic disease was Cutaneous leishmaniasis with ", cutaneous_leishmaniasis_trend$total_cases, 
+  " cases, followed by Chagas disease (n= ", chagas_trend$total_cases, "). Chagas disease also exhibited fluctuations, with a peak in ", chagas_trend$peak_year, 
+  " at ", chagas_trend$peak_value, " cases and the lowest in ", chagas_trend$lowest_year, " at 0 reported cases. The average annual cases were ", chagas_trend$avg_value, 
+  ". Cutaneous leishmaniasis showed relatively stable numbers with occasional spikes. The highest number of cases was in ", cutaneous_leishmaniasis_trend$peak_year, 
+  " with ", cutaneous_leishmaniasis_trend$peak_value, " cases, while the lowest was in ", cutaneous_leishmaniasis_trend$lowest_year, " with ", cutaneous_leishmaniasis_trend$lowest_value, 
+  " cases. The average annual cases were ", cutaneous_leishmaniasis_trend$avg_value, ".\n",
+  
+ "The other zoonotic and vector-borne diseases reported relatively lower numbers of cases. Visceral leishmaniasis had an average of ", visceral_leishmaniasis_trend$avg_value, 
+  " cases annually, with a peak of ", visceral_leishmaniasis_trend$peak_value, " cases in ", visceral_leishmaniasis_trend$peak_year, 
+  " and the lowest in ", visceral_leishmaniasis_trend$lowest_year, ". Rickettsia cases were also low, averaging ", rickettsia_trend$avg_value, 
+  " cases per year, peaking at ", rickettsia_trend$peak_value, " in ", rickettsia_trend$peak_year, " and the lowest in ", rickettsia_trend$lowest_year, 
+  ". Hantavirus had the fewest cases, with an annual average of ", hanta_trend$avg_value, 
+  " cases, peaking at ", hanta_trend$peak_value, " in ", hanta_trend$peak_year, " and the lowest in many years at 0 cases.\n")
+
+# Print the updated text
+cat(zoo_text)
+```
+
+
+## By fire-related condition:
+```{r}
+annual_fire <- combined_summarized_data %>%
+  filter(country != "Total Amazon") %>%
+  group_by(year) %>%
+  summarise(
+    total_fire_related = sum(fire_related, na.rm = TRUE)/ sum(!is.na(fire_related)),
+    total_respiratory = sum(respiratory, na.rm = TRUE)/ sum(!is.na(respiratory)),
+    total_cardiovascular = sum(cardiovascular, na.rm = TRUE)/ sum(!is.na(cardiovascular)),
+    total_chronic = sum(chronic, na.rm = TRUE)/ sum(!is.na(chronic)),
+    total_acute = sum(acute, na.rm = TRUE)/ sum(!is.na(acute))
+  )
+
+(p_fire <- ggplot(annual_fire, aes(x = year)) +
+  geom_line(aes(y = total_fire_related, color = "Fire-related"), linetype = "dotted", size = 1) +
+  geom_line(aes(y = total_respiratory, color = "Respiratory"), size = .7) +
+  geom_line(aes(y = total_cardiovascular, color = "Cardiovascular"), size = 1) +
+  # geom_line(aes(y = total_chronic, color = "Chronic"), size = 1) +
+  # geom_line(aes(y = total_acute, color = "Acute"), size = 1) +
+  scale_color_manual(values = c("Fire-related" = "#A9CCC5",
+                                "Respiratory" = "#134F49",
+                                "Cardiovascular" = "#578781")) +
+                                # "Chronic" = "#FFB6C1", 
+                                # "Acute" = "#FF4500")) +
+  labs(title = " ",
+       x = "Year",
+       y = "Number of Cases",
+       color = " ") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top") +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20)))
+
+# Save the plot
+ggsave(here("data", "descriptive_figs", "temporal_trends_fire_conditions.png"), width = 10, height = 6)
+```
+
+Panel specific diseases for zoo e fire-related:
+```{r}
+# Combine the plots using patchwork
+(zoo_plot) / 
+  (p_fire + plot_annotation("(G)"))
+
+# Save the combined plot
+ggsave(here("data", "descriptive_figs", "temporal_zoo_fire_panel.png"), width = 8, height = 10)
+```
+
+```{r}
+# Update the text based on the calculated trends
+fire_text <- paste("In addition to zoonotic diseases, fire-related conditions constituted a significant portion of health cases in the Amazon region. There were ", sum(annual_fire$total_fire_related), 
+  " cases of fire-related conditions, of which ", sum(annual_fire$total_respiratory), " were respiratory diseases and ", sum(annual_fire$total_cardiovascular), 
+  " were cardiovascular diseases. Respiratory diseases, driven by fire-related events, showed considerable variation over the years. The highest number of cases was in 2010 with ", max(annual_fire$total_respiratory), 
+  " cases, and the lowest in 2004 with ", min(annual_fire$total_respiratory), " cases. The average annual cases were ", mean(annual_fire$total_respiratory), 
+  ". Cardiovascular diseases also varied, peaking in 2010 with ", max(annual_fire$total_cardiovascular), 
+  " cases, and the lowest in 2006 with ", min(annual_fire$total_cardiovascular), " cases. The average annual cases were ", mean(annual_fire$total_cardiovascular), "."
+)
+cat(fire_text)
+```
+
+OR:
+```{r, eval= FALSE}
+resp_card <- ggplot(annual_fire, aes(x = year)) +
+  geom_line(aes(y = total_fire_related, color = "Fire-related"), size = 1) +
+  geom_line(aes(y = total_respiratory, color = "Respiratory"), size = 1) +
+  geom_line(aes(y = total_cardiovascular, color = "Cardiovascular"), size = 1) +
+  scale_color_manual(values = c("Fire-related" = "#A94123",
+                                "Respiratory" = "#CE705E",
+                                "Cardiovascular" = "#8E0B0B")) +
+  labs(title = " ",
+       x = "Year",
+       y = "Number of Cases",
+       color = " ") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom") +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20))
+
+acute_chronic <- ggplot(annual_fire, aes(x = year)) +
+  geom_line(aes(y = total_fire_related, color = "Fire-related"), size = 1) +
+  geom_line(aes(y = total_chronic, color = "Chronic"), size = 1) +
+  geom_line(aes(y = total_acute, color = "Acute"), size = 1) +
+  scale_color_manual(values = c("Fire-related" = "#A94123",
+                                "Chronic" = "#EAA59B",
+                                "Acute" = "#8F1139")) +
+  labs(title = " ",
+       x = "Year",
+       y = " ",
+       color = " ") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom") +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 20))
+
+# Combine the two plots side by side
+(combined_plot <- plot_grid(resp_card, acute_chronic, labels = c("(G)", "(H)"), ncol = 2))
+
+# Save the combined plot
+ggsave(here("data", "descriptive_figs", "temporal_trends_fire_conditions2.png"), combined_plot, width = 11, height = 5)
+
+```
+
+
+# By country (better with maps?)
+
+```{r, eval= FALSE}
+# Summarize data by country and sum all numeric columns, ensuring "Total Amazon" is last
+summarized_by_country <- combined_summarized_data %>%
+  select(-year) %>%
+  filter(!country== "Total Amazon") %>%
+  group_by(country, n_zoo, n_fire, n_resp, n_card, n_acute, n_chronic) %>%
+  summarise(across(where(is.numeric), sum, na.rm = TRUE)) %>%
+  # arrange(factor(country, levels = c(sort(unique(summarized_data$country)), "Total Amazon"))) %>%
+dplyr::select(country, health, malaria, cutaneous_leishmaniasis, chagas,
+              rickettsia, hantavirus, visceral_leishmaniasis, zoonotic, n_zoo, fire_related, n_fire, cardiovascular, n_card, respiratory, n_resp, acute, n_acute, chronic, n_chronic) %>%
+  dplyr::rename("Country/Region"= country) %>%
+  mutate(across(where(is.numeric), ~ na_if(., 0)))
+  
+
+
+write.csv(summarized_by_country, file=here::here("data","summarized_ncases.csv"),
+          row.names=FALSE)
+# Display the summarized data
+print(summarized_by_country)
+```
+
+Alernative display in plot
+```{r, eval= FALSE}
+# Pivot longer for plotting
+summarized_by_country %>%
+  pivot_longer(cols = c(-`Country/Region`, -n_zoo, -n_fire, -n_resp, -n_card, -n_acute, -n_chronic), names_to = "Health_Aspect", values_to = "Cases") %>%
+  ggplot(aes(x = `Country/Region`, y = Cases, fill = Health_Aspect)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  labs(title = "Total Cases of Health Aspects by Country",
+       x = "Country/Region",
+       y = "Number of Cases",
+       fill = "Health Aspect") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Save the plot
+ggsave(here("data", "summarized_ncases_plot.png"), width = 12, height = 8)
+```
+
+```{r, fig.cap= "Temporal Trends of Weighted Zoonotic and Fire-Related Diseases in the Amazon Region, Faceted by Country (2001-2019). The number of cases for each disease is weighted by the number of specific diseases reported by each country, with zoonotic diseases in dark green and fire-related diseases in dark red. ."}
+# Pivot longer for plotting
+weighted_country <- combined_summarized_data %>%
+  mutate(
+    wzoonotic = zoonotic / n_zoo,
+    wfire = fire_related / n_fire,
+    wcardiovascular = cardiovascular / n_card,
+    wrespiratory = respiratory / n_resp,
+    wacute = acute / n_acute,
+    wchronic = chronic / n_chronic)
+
+# Set "Total Amazon" first and then alphabetically sort the rest
+weighted_country$country <- factor(weighted_country$country, 
+                                                    levels = c("Total Amazon", sort(unique(weighted_country$country[weighted_country$country != "Total Amazon"]))))
+
+plotgroups <- ggplot(weighted_country %>%
+                       pivot_longer(cols = c(wzoonotic, wfire), names_to = "Health_Aspect", values_to = "Cases"), 
+                     aes(x = year, y = Cases, color = Health_Aspect)) +
+  geom_line() +
+  facet_wrap(~ country, scales = "free_y") +
+  scale_color_manual(values = c("wzoonotic" = "#8E0B0B", "wfire" = "#578781"), 
+                     labels = c("wzoonotic" = "Zoonotic", "wfire" = "Fire Related")) +
+  theme_minimal() +
+  labs(title = " ",
+       x = "Year",
+       y = "Number of Cases",
+       color = " ") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),
+        legend.position = "top") +
+  scale_x_continuous(breaks = seq(2001, 2019, by = 1))  # Increase the number of x-axis breaks
+
+# Save the plot
+ggsave(here("data", "descriptive_figs", "country_weighted_ncases.png"), plot = plotgroups, width = 12, height = 8)
+
+plotgroups
+```
+
+```{r, fig.cap= "Temporal Trends of Specific Zoonotic Diseases in the Amazon Region, Faceted by Country (2001-2019). 'Total Amazon' is displayed first to provide an overview of the entire region. The number of cases for each disease is weighted by the number of specific diseases reported by each country, with diseases displayed in shades of green. The x-axis shows yearly intervals for clearer temporal trends. The legend is positioned at the top for better visibility."}
+plotzoo <- ggplot(weighted_country %>%
+         pivot_longer(cols = c(malaria, chagas, cutaneous_leishmaniasis, rickettsia, hantavirus, visceral_leishmaniasis), 
+                      names_to = "Health_Aspect", values_to = "Cases"), 
+       aes(x = year, y = Cases, color = Health_Aspect)) +
+  geom_line() +
+  facet_wrap(~ country, scales = "free_y") +
+  scale_color_manual(values = c("malaria" = "#8E0B0B",
+                                "cutaneous_leishmaniasis" = "#8F1139", 
+                                "chagas" = "#A94123", 
+                                "visceral_leishmaniasis" = "#CE705E", 
+                                "rickettsia" = "#EAA59B", 
+                                "hantavirus" = "#EAA59B"),
+                     labels = c("malaria" = "Malaria", 
+                                "chagas" = "Chagas Disease", 
+                                "cutaneous_leishmaniasis" = "Cutaneous Leishmaniasis", 
+                                "rickettsia" = "Rickettsia", 
+                                "hantavirus" = "Hantavirus", 
+                                "visceral_leishmaniasis" = "Visceral Leishmaniasis")) +
+  theme_minimal() +
+  labs(title = " ",
+       x = "Year",
+       y = "Number of Cases",
+       color = " ") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),
+        legend.position = "top") +
+  scale_x_continuous(breaks = seq(2001, 2019, by = 1))  # Increase the number of x-axis breaks
+
+# Save the plot
+ggsave(here("data", "descriptive_figs", "country_weighted_zoo_ncases.png"), plot = plotzoo, width = 12, height = 7)
+
+plotzoo
+```
+
+
+
+```{r, fig.cap= "Temporal Trends of Specific Fire-related Diseases in the Amazon Region, Faceted by Country (2001-2019). The number of cases for each disease is weighted by the number of specific diseases reported by each country, with diseases displayed in shades of red."}
+plotfire <- ggplot(weighted_country %>%
+                     filter(!country== "Venezuela") %>%
+         pivot_longer(cols = c(wcardiovascular, wrespiratory), 
+                      names_to = "Health_Aspect", values_to = "Cases"), 
+       aes(x = year, y = Cases, color = Health_Aspect)) +
+  geom_line() +
+  facet_wrap(~ country, scales = "free_y") +
+  scale_color_manual(values = c("wcardiovascular" = "#A9CCC5",
+                                "wrespiratory" = "#578781"),
+                     labels = c("wcardiovascular" = "Cardiovascular", 
+                                "wrespiratory" = "Respiratory")) +
+  theme_minimal() +
+  labs(title = " ",
+       x = "Year",
+       y = "Number of Cases",
+       color = " ") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1),
+        legend.position = "top") +
+  scale_x_continuous(breaks = seq(2001, 2019, by = 1))  # Increase the number of x-axis breaks
+
+# Save the plot
+ggsave(here("data", "descriptive_figs", "country_weighted_fire_ncases.png"), plot = plotfire, width = 12, height = 7)
+
+plotfire
+```
+
+
+```{r}
+means_grouped_country <- combined_summarized_data %>%
+  filter(!country== "Total Amazon") %>%
+  group_by(country) %>%
+  summarise(
+    health = mean(health, na.rm = TRUE),
+    chagas = mean(chagas, na.rm = TRUE),
+    hantavirus = mean(hantavirus, na.rm = TRUE),
+    cutaneous_leishmaniasis = mean(cutaneous_leishmaniasis, na.rm = TRUE),
+    visceral_leishmaniasis = mean(visceral_leishmaniasis, na.rm = TRUE),
+    rickettsia = mean(rickettsia, na.rm = TRUE),
+    malaria = mean(malaria, na.rm = TRUE),
+    wzoonotic = mean(zoonotic / n_zoo, na.rm = TRUE),
+    wfire = mean(fire_related / n_fire, na.rm = TRUE),
+    wcardiovascular = mean(cardiovascular / n_card, na.rm = TRUE),
+    wrespiratory = mean(respiratory / n_resp, na.rm = TRUE),
+    wacute = mean(acute / n_acute, na.rm = TRUE),
+    wchronic = mean(chronic / n_chronic, na.rm = TRUE)) %>%
+  mutate(across(everything(), ~ifelse(is.nan(.), NA, .)),
+         across(where(is.numeric), ~ na_if(., 0)))
+
+
+# Calculate the sum for each numeric column
+sum_row <- means_grouped_country %>%
+  summarise(across(where(is.numeric), sum, na.rm = TRUE)) %>%
+  mutate(country = "Total Amazon")
+
+# Bind the sum row to the original data
+means_grouped_country <- means_grouped_country %>%
+  bind_rows(sum_row)
+
+# Save the dataset
+write.csv(means_grouped_country, file = here::here("data", "means_grouped_country.csv"), row.names = FALSE)
+
+# Print the dataset to verify
+print(means_grouped_country)
+```
+
+
+
+# INCIDENCE
+
+## Country-level
+```{r}
+country_pop <- combined_data %>% 
+  group_by(country) %>% 
+  summarize(pop= sum(pop, na.rm= TRUE))
+
+# Calculate incidence for means_grouped_country
+incidence_mean_country <- means_grouped_country %>%
+  filter(!country== "Total Amazon") %>%
+  left_join(country_pop, by= "country") %>%
+  mutate(
+    chagas_inc = (chagas / pop) * 100000,
+    hantavirus_inc = (hantavirus / pop) * 100000,
+    cutaneous_leishmaniasis_inc = (cutaneous_leishmaniasis / pop) * 100000,
+    visceral_leishmaniasis_inc = (visceral_leishmaniasis / pop) * 100000,
+    rickettsia_inc = (rickettsia / pop) * 100000,
+    malaria_inc = (malaria / pop) * 100000,
+    wzoonotic_inc = (wzoonotic / pop) * 100000,
+    wfire_inc = (wfire / pop) * 100000,
+    wcardiovascular_inc = (wcardiovascular / pop) * 100000,
+    wrespiratory_inc = (wrespiratory / pop) * 100000,
+    wacute_inc = (wacute / pop) * 100000,
+    wchronic_inc = (wchronic / pop) * 100000
+  ) %>%
+  select(-pop)
+
+inci_health <- incidence_mean_country %>%
+  group_by(country) %>%
+  summarise(health_inc= sum(wzoonotic_inc, wfire_inc, na.rm= TRUE))
+
+incidence_mean_country <- incidence_mean_country %>% 
+  right_join(inci_health, by= "country")
+
+
+incidence_mean_country <- incidence_mean_country %>%
+  select(country, health_inc, wzoonotic_inc, wfire_inc,
+         malaria_inc, cutaneous_leishmaniasis_inc, chagas_inc, rickettsia_inc, 
+         hantavirus_inc, visceral_leishmaniasis_inc, wcardiovascular_inc, 
+         wrespiratory_inc, wacute_inc, wchronic_inc)
+
+# Calculate incidence for combined_summarized_data
+incidence_year_country <- combined_summarized_data %>%
+  filter(!country== "Total Amazon") %>%
+  left_join(country_pop, by= "country") %>%
+  mutate(
+    chagas_inc = (chagas / pop) * 100000,
+    hantavirus_inc = (hantavirus / pop) * 100000,
+    cutaneous_leishmaniasis_inc = (cutaneous_leishmaniasis / pop) * 100000,
+    visceral_leishmaniasis_inc = (visceral_leishmaniasis / pop) * 100000,
+    rickettsia_inc = (rickettsia / pop) * 100000,
+    malaria_inc = (malaria / pop) * 100000,
+    wzoonotic_inc = (zoonotic / n_zoo / pop) * 100000,
+    wfire_inc = (fire_related / n_fire / pop) * 100000,
+    wcardiovascular_inc = (cardiovascular / n_card / pop) * 100000,
+    wrespiratory_inc = (respiratory / n_resp / pop) * 100000,
+    wacute_inc = (acute / n_acute / pop) * 100000,
+    wchronic_inc = (chronic / n_chronic / pop) * 100000
+  ) %>%
+  select(-pop)
+
+inci_health <- incidence_year_country %>%
+  group_by(country, year) %>%
+  summarise(health_inc= sum(wzoonotic_inc, wfire_inc, na.rm= TRUE))
+
+
+incidence_year_country <- incidence_year_country %>% 
+  right_join(inci_health, by= c("country", "year"))
+
+
+incidence_year_country <- incidence_year_country %>%
+  select(country, year, health_inc, wzoonotic_inc, wfire_inc,
+         malaria_inc, cutaneous_leishmaniasis_inc, chagas_inc, rickettsia_inc, 
+         hantavirus_inc, visceral_leishmaniasis_inc, wcardiovascular_inc, 
+         wrespiratory_inc, wacute_inc, wchronic_inc)
+
+
+write.csv(incidence_mean_country, file = here::here("data", "incidence_country.csv"), row.names = FALSE)
+write.csv(incidence_year_country, file = here::here("data", "incidence_year_country.csv"), row.names = FALSE)
+```
+
+Extract wide versions:
+```{r, echo= FALSE}
+# Assuming incidence_year_country is your data frame
+# Pivot the data to make it wider
+wider_data <- incidence_year_country %>%
+  pivot_wider(names_from = year, values_from = c(health_inc, wzoonotic_inc, wfire_inc, malaria_inc, cutaneous_leishmaniasis_inc, chagas_inc, rickettsia_inc, hantavirus_inc, visceral_leishmaniasis_inc, wcardiovascular_inc, wrespiratory_inc, wacute_inc, wchronic_inc))
+
+# Save temporal dataset for each disease
+health_data <- wider_data %>% select(country, starts_with("health_inc"))
+write.csv(health_data, here("data", "wide_data_maps", "country_temporal_diseases", "health_temp_countries.csv"))
+
+wzoonotic_data <- wider_data %>% select(country, starts_with("wzoonotic_inc"))
+write.csv(wzoonotic_data, here("data", "wide_data_maps", "country_temporal_diseases", "wzoonotic_temp_countries.csv"))
+
+wfire_data <- wider_data %>% select(country, starts_with("wfire_inc"))
+write.csv(wfire_data, here("data", "wide_data_maps", "country_temporal_diseases", "wfire_temp_countries.csv"))
+
+malaria_data <- wider_data %>% select(country, starts_with("malaria_inc"))
+write.csv(malaria_data, here("data", "wide_data_maps", "country_temporal_diseases", "malaria_temp_countries.csv"))
+
+cutaneous_leishmaniasis_data <- wider_data %>% select(country, starts_with("cutaneous_leishmaniasis_inc"))
+write.csv(cutaneous_leishmaniasis_data, here("data", "wide_data_maps", "country_temporal_diseases", "cutaneous_leishmaniasis_temp_countries.csv"))
+
+chagas_data <- wider_data %>% select(country, starts_with("chagas_inc"))
+write.csv(chagas_data, here("data", "wide_data_maps", "country_temporal_diseases", "chagas_temp_countries.csv"))
+
+rickettsia_data <- wider_data %>% select(country, starts_with("rickettsia_inc"))
+write.csv(rickettsia_data, here("data", "wide_data_maps", "country_temporal_diseases", "rickettsia_temp_countries.csv"))
+
+hantavirus_data <- wider_data %>% select(country, starts_with("hantavirus_inc"))
+write.csv(hantavirus_data, here("data", "wide_data_maps", "country_temporal_diseases", "hantavirus_temp_countries.csv"))
+
+visceral_leishmaniasis_data <- wider_data %>% select(country, starts_with("visceral_leishmaniasis_inc"))
+write.csv(visceral_leishmaniasis_data, here("data", "wide_data_maps", "country_temporal_diseases", "visceral_leishmaniasis_temp_countries.csv"))
+
+wcardiovascular_data <- wider_data %>% select(country, starts_with("wcardiovascular_inc"))
+write.csv(wcardiovascular_data, here("data", "wide_data_maps", "country_temporal_diseases", "wcardiovascular_temp_countries.csv"))
+
+wrespiratory_data <- wider_data %>% select(country, starts_with("wrespiratory_inc"))
+write.csv(wrespiratory_data, here("data", "wide_data_maps", "country_temporal_diseases", "wrespiratory_temp_countries.csv"))
+
+wacute_data <- wider_data %>% select(country, starts_with("wacute_inc"))
+write.csv(wacute_data, here("data", "wide_data_maps", "country_temporal_diseases", "wacute_temp_countries.csv"))
+
+wchronic_data <- wider_data %>% select(country, starts_with("wchronic_inc"))
+write.csv(wchronic_data, here("data", "wide_data_maps", "country_temporal_diseases", "wchronic_temp_countries.csv"))
+
+```
+
+
+```{r}
+incidence_mean_country %>%
+  select(country, wzoonotic_inc, wfire_inc) %>%
+  pivot_longer(cols = c(wzoonotic_inc, wfire_inc), 
+               names_to = "Health_Aspect", values_to = "Incidence") %>%
+  group_by(country) %>%
+  mutate(Percentage = Incidence / sum(Incidence, na.rm= TRUE) * 100) %>% 
+  # Plot with percentages
+ggplot(aes(x = reorder(country, country), y = Incidence, fill = Health_Aspect)) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_text(aes(label = ifelse(Health_Aspect != "health_inc", paste0(round(Percentage, 1), "%"), "")),
+            position = position_stack(vjust = 0.5), size = 3, color = "white") +
+  scale_fill_manual(values = c("wzoonotic_inc" = "#8E0B0B", "wfire_inc" = "#578781"),
+                    labels = c("health_inc" = "Overall health incidence", 
+                               "wzoonotic_inc" = "Zoonotic diseases incidence", 
+                               "wfire_inc" = "Fire-related diseases incidence")) +
+  theme_minimal() +
+  labs(title = "Overall Health Incidence by Country",
+       x = "Country",
+       y = "Incidence per 100,000",
+       fill = " ") +
+  theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom")
+
+# Save the plot
+ggsave(here("data", "descriptive_figs", "health_incidence_by_country.png"), width = 8, height = 5)
+
+```
+
+
+
+## Municipality level
+
+```{r}
+incidence_mean_municipality <- combined_data %>%
+  select(1:23) %>%
+  group_by(country, COD) %>%
+  summarise(
+    chagas = mean(chagas, na.rm = TRUE),
+    hantavirus = mean(hantavirus, na.rm = TRUE),
+    cutaneous_leishmaniasis = mean(cutaneous_leishmaniasis, na.rm = TRUE),
+    visceral_leishmaniasis = mean(visceral_leishmaniasis, na.rm = TRUE),
+    rickettsia = mean(rickettsia, na.rm = TRUE),
+    malaria = mean(malaria, na.rm = TRUE),
+    wzoonotic = mean(zoonotic / n_zoo, na.rm = TRUE),
+    wfire = mean(fire_related / n_fire, na.rm = TRUE),
+    wcardiovascular = mean(cardiovascular / n_card, na.rm = TRUE),
+    wrespiratory = mean(respiratory / n_resp, na.rm = TRUE),
+    wacute = mean(acute / n_acute, na.rm = TRUE),
+    wchronic = mean(chronic / n_chronic, na.rm = TRUE),
+    pop = mean(pop, na.rm = TRUE)
+  ) %>%
+  mutate(across(everything(), ~ifelse(is.nan(.), NA, .))) %>%
+  mutate(
+    chagas_inc = (chagas / pop) * 100000,
+    hantavirus_inc = (hantavirus / pop) * 100000,
+    cutaneous_leishmaniasis_inc = (cutaneous_leishmaniasis / pop) * 100000,
+    visceral_leishmaniasis_inc = (visceral_leishmaniasis / pop) * 100000,
+    rickettsia_inc = (rickettsia / pop) * 100000,
+    malaria_inc = (malaria / pop) * 100000,
+    wzoonotic_inc = (wzoonotic / pop) * 100000,
+    wfire_inc = (wfire / pop) * 100000,
+    wcardiovascular_inc = (wcardiovascular / pop) * 100000,
+    wrespiratory_inc = (wrespiratory / pop) * 100000,
+    wacute_inc = (wacute / pop) * 100000,
+    wchronic_inc = (wchronic / pop) * 100000
+  ) %>%
+  select(-pop)
+
+inci_health <- incidence_mean_municipality %>%
+  group_by(country, COD) %>%
+  summarise(health_inc= sum(wzoonotic_inc, wfire_inc, na.rm= TRUE))
+
+incidence_mean_municipality <- incidence_mean_municipality %>% 
+  right_join(inci_health, by= c("country", "COD"))
+
+
+incidence_mean_municipality <- incidence_mean_municipality %>%
+  select(country, COD, health_inc, wzoonotic_inc, wfire_inc,
+         malaria_inc, cutaneous_leishmaniasis_inc, chagas_inc, rickettsia_inc, 
+         hantavirus_inc, visceral_leishmaniasis_inc, wcardiovascular_inc, 
+         wrespiratory_inc, wacute_inc, wchronic_inc)
+
+
+# Calcular incidência para dados resumidos por ano e município
+incidence_year_municipality <- combined_data %>%
+  select(1:23) %>%
+  mutate(
+    chagas_inc = (chagas / pop) * 100000,
+    hantavirus_inc = (hantavirus / pop) * 100000,
+    cutaneous_leishmaniasis_inc = (cutaneous_leishmaniasis / pop) * 100000,
+    visceral_leishmaniasis_inc = (visceral_leishmaniasis / pop) * 100000,
+    rickettsia_inc = (rickettsia / pop) * 100000,
+    malaria_inc = (malaria / pop) * 100000,
+    wzoonotic_inc = (zoonotic / n_zoo / pop) * 100000,
+    wfire_inc = (fire_related / n_fire / pop) * 100000,
+    wcardiovascular_inc = (cardiovascular / n_card / pop) * 100000,
+    wrespiratory_inc = (respiratory / n_resp / pop) * 100000,
+    wacute_inc = (acute / n_acute / pop) * 100000,
+    wchronic_inc = (chronic / n_chronic / pop) * 100000
+  ) %>%
+  select(-pop, -health)
+
+inci_health <- incidence_year_municipality %>%
+  group_by(COD, year) %>%
+  summarise(health_inc= sum(wzoonotic_inc, wfire_inc, na.rm= TRUE))
+
+
+incidence_year_municipality <- incidence_year_municipality %>% 
+  right_join(inci_health, by= c( "COD", "year"))
+
+
+incidence_year_municipality <- incidence_year_municipality %>%
+  select(country, COD, year, health_inc, wzoonotic_inc, wfire_inc,
+         malaria_inc, cutaneous_leishmaniasis_inc, chagas_inc, rickettsia_inc, 
+         hantavirus_inc, visceral_leishmaniasis_inc, wcardiovascular_inc, 
+         wrespiratory_inc, wacute_inc, wchronic_inc)
+
+
+write.csv(incidence_mean_municipality, file = here::here("data", "incidence_mean_COD.csv"), row.names = FALSE)
+write.csv(incidence_year_municipality, file = here::here("data", "incidence_year_COD.csv"), row.names = FALSE)
+```
+
+Wide municipality code:
+```{r, echo= FALSE}
+wider_temp_MUN <- incidence_year_municipality %>%
+  pivot_wider(names_from = year, values_from = c(health_inc, wzoonotic_inc, wfire_inc, malaria_inc, cutaneous_leishmaniasis_inc, chagas_inc, rickettsia_inc, hantavirus_inc, visceral_leishmaniasis_inc, wcardiovascular_inc, wrespiratory_inc, wacute_inc, wchronic_inc))
+
+# Save temporal dataset for each disease
+health_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("health_inc"))
+write.csv(health_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "health_temp_MUN.csv"))
+
+wzoonotic_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("wzoonotic_inc"))
+write.csv(wzoonotic_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "wzoonotic_temp_MUN.csv"))
+
+wfire_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("wfire_inc"))
+write.csv(wfire_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "wfire_temp_MUN.csv"))
+
+malaria_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("malaria_inc"))
+write.csv(malaria_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "malaria_temp_MUN.csv"))
+
+cutaneous_leishmaniasis_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("cutaneous_leishmaniasis_inc"))
+write.csv(cutaneous_leishmaniasis_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "cutaneous_leishmaniasis_temp_MUN.csv"))
+
+chagas_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("chagas_inc"))
+write.csv(chagas_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "chagas_temp_MUN.csv"))
+
+rickettsia_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("rickettsia_inc"))
+write.csv(rickettsia_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "rickettsia_temp_MUN.csv"))
+
+hantavirus_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("hantavirus_inc"))
+write.csv(hantavirus_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "hantavirus_temp_MUN.csv"))
+
+visceral_leishmaniasis_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("visceral_leishmaniasis_inc"))
+write.csv(visceral_leishmaniasis_temp_MUN, "visceral_leishmaniasis_temp_MUN.csv")
+
+wcardiovascular_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("wcardiovascular_inc"))
+write.csv(wcardiovascular_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "wcardiovascular_temp_MUN.csv"))
+
+wrespiratory_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("wrespiratory_inc"))
+write.csv(wrespiratory_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "wrespiratory_temp_MUN.csv"))
+
+wacute_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("wacute_inc"))
+write.csv(wacute_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "wacute_temp_MUN.csv"))
+
+wchronic_temp_MUN <- wider_temp_MUN %>% select(country, COD, starts_with("wchronic_inc"))
+write.csv(wchronic_temp_MUN, here("data", "wide_data_maps", "COD_temporal_diseases", "wchronic_temp_MUN.csv"))
+
+```
+
+
+
+<!-- # Amazon general health, zoonotic/vector-borne and fire-related diseases -->
+
+<!-- Calculate weighted incidence rates per 100,000 population and then -->
+<!-- summary statistics for weighted incidence rates grouped by country and -->
+<!-- year. -->
+
+<!-- ```{r} -->
+<!-- # Calculate weighted incidence rates per 100,000 population -->
+<!-- country_incicence <- combined_data %>% -->
+<!--   select(1:23) %>% -->
+<!--   group_by(country, year, n_zoo, n_fire, n_resp, n_card, n_acute, n_chronic, pop) %>% -->
+<!--   summarise(across(where(is.numeric), sum, na.rm = TRUE)) %>% -->
+<!--   group_by(country, year) %>% -->
+<!--   summarise( -->
+<!--     ihealth = (health / (pop * (n_zoo + n_fire))) * 100000, -->
+<!--     izoo = (zoonotic / (pop * n_zoo)) * 100000, -->
+<!--     imalaria = (malaria / pop) * 100000, -->
+<!--     icutaneous_leishmaniasis = (cutaneous_leishmaniasis / pop) * 100000, -->
+<!--     ichagas = (chagas / pop) * 100000, -->
+<!--     ivisceral_leishmaniasis = (visceral_leishmaniasis / pop) * 100000, -->
+<!--     irickettsia = (rickettsia / pop) * 100000, -->
+<!--     ihantavirus = (hantavirus / pop) * 100000, -->
+<!--     ifire = (fire_related / (pop * n_fire)) * 100000, -->
+<!--     icard = (cardiovascular / (pop * n_card)) * 100000, -->
+<!--     iresp = (respiratory / (pop * n_resp)) * 100000, -->
+<!--     iacute = (acute / (pop * n_acute)) * 100000, -->
+<!--     ichronic = (chronic / (pop * n_chonic)) * 100000) -->
+
+<!-- # Summary statistics for weighted incidence rates grouped by country and year -->
+<!-- summary_stats <- combined_data %>% -->
+<!--   group_by(country, year) %>% -->
+<!--   summarise( -->
+<!--     ihealth_Min = min(ihealth, na.rm = TRUE), -->
+<!--     ihealth_Max = max(ihealth, na.rm = TRUE), -->
+<!--     ihealth_Mean = mean(ihealth, na.rm = TRUE), -->
+<!--     ihealth_Median = median(ihealth, na.rm = TRUE), -->
+<!--     ihealth_SD = sd(ihealth, na.rm = TRUE), -->
+<!--     izoo_Min = min(izoo, na.rm = TRUE), -->
+<!--     izoo_Max = max(izoo, na.rm = TRUE), -->
+<!--     izoo_Mean = mean(izoo, na.rm = TRUE), -->
+<!--     izoo_Median = median(izoo, na.rm = TRUE), -->
+<!--     izoo_SD = sd(izoo, na.rm = TRUE), -->
+<!--     ifire_Min = min(ifire, na.rm = TRUE), -->
+<!--     ifire_Max = max(ifire, na.rm = TRUE), -->
+<!--     ifire_Mean = mean(ifire, na.rm = TRUE), -->
+<!--     ifire_Median = median(ifire, na.rm = TRUE), -->
+<!--     ifire_SD = sd(ifire, na.rm = TRUE) -->
+<!--   ) -->
+
+<!-- # Display the summary statistics -->
+<!-- print(summary_stats) -->
+<!-- ``` -->
+
+<!-- Overall weighted incidence rate for the entire Amazon region: -->
+
+<!-- ```{r} -->
+<!-- # Calculate overall weighted incidence rate for the entire Amazon region -->
+<!-- overall_incidence <- combined_data %>% -->
+<!--   group_by(year) %>% -->
+<!--   summarise( -->
+<!--     Total_Cases = sum(health, na.rm = TRUE), -->
+<!--     Total_Population = sum(pop, na.rm = TRUE), -->
+<!--     Total_Diseases = sum(n_zoo + n_fire, na.rm = TRUE), -->
+<!--     Total_Zoo_Cases = sum(zoonotic, na.rm = TRUE), -->
+<!--     Total_Fire_Cases = sum(fire_related, na.rm = TRUE), -->
+<!--     ihealth = (Total_Cases / (Total_Population * Total_Diseases)) * 100000, -->
+<!--     izoo = (Total_Zoo_Cases / (Total_Population * sum(n_zoo, na.rm = TRUE))) * 100000, -->
+<!--     ifire = (Total_Fire_Cases / (Total_Population * sum(n_fire, na.rm = TRUE))) * 100000 -->
+<!--   ) -->
+
+<!-- # Display the overall weighted incidence rates -->
+<!-- print(overall_incidence) -->
+<!-- ``` -->
+
+<!-- Visualize overall weighted incidence rates over time: -->
+
+<!-- ```{r} -->
+<!-- # Visualize overall weighted incidence rates over time -->
+<!-- ggplot(overall_incidence, aes(x = year, y = ihealth)) + -->
+<!--   geom_line(color = "#1f78b4") + -->
+<!--   theme_minimal() + -->
+<!--   labs(title = "Overall Weighted Incidence Over Time in the Amazon Region", -->
+<!--        x = "Year", -->
+<!--        y = "Weighted Incidence Rate per 100,000") + -->
+<!--   theme_cowplot() -->
+
+<!-- # Save the plot -->
+<!-- ggsave(here("data", "descriptive_figs", "overall_ihealth_trends.png"), width = 10, height = 6) -->
+<!-- ``` -->
+
+<!-- ```{r, fig.width= 8, fig.height= 5} -->
+<!-- # Visualize overall weighted incidence rates over time with angled x-axis labels -->
+<!-- ggplot(overall_incidence, aes(x = year)) + -->
+<!--   geom_line(aes(y = ihealth, color = "Overall"), size = 1.2) + -->
+<!--   geom_line(aes(y = izoo, color = "Zoonotic"), size = 1.2) + -->
+<!--   geom_line(aes(y = ifire, color = "Fire-related"), size = 1.2) + -->
+<!--   scale_color_manual(values =  -->
+<!--                        c("Overall" = "#1f78b4", "Zoonotic" = "#33a02c", "Fire-related" = "#e31a1c")) +  # Color-blind friendly colors -->
+<!--   labs(title = "Temporal overall, Zoonotic, and Fire-related Weighted Incidence in the Amazon", -->
+<!--        x = "Year", -->
+<!--        y = "Weighted Incidence per 100,000", -->
+<!--        color = " ") + -->
+<!--   scale_x_continuous(breaks = scales::pretty_breaks(n = 15)) +  # More x-axis ticks -->
+<!--   theme_cowplot() + -->
+<!--   theme(axis.text.x = element_text(angle = 60, hjust = 1))  # Apply theme for x-axis labels -->
+
+
+<!-- # Save the plot -->
+<!-- ggsave(here("data", "descriptive_figs", "overall_incidence_trends.png"), width = 10, height = 6) -->
+<!-- ``` -->
+
+## Per Country
+
+Grouped mean data availability
+
+```{r}
+# Group data by country and year, then calculate incidence rates
+grouped_data <- combined_data %>%
+  group_by(country, year) %>%
+  summarise(
+    Mean_Cases = mean(health, na.rm = TRUE),
+    Mean_Population = mean(pop, na.rm = TRUE),
+    Incidence_Rate = (Mean_Cases / Mean_Population) * 100000,
+    Mean_Zoo_Cases = mean(zoonotic, na.rm = TRUE),
+    Mean_Fire_Cases = mean(fire_related, na.rm = TRUE),
+    Incidence_Zoo_Rate = (Mean_Zoo_Cases / Mean_Population) * 100000,
+    Incidence_Fire_Rate = (Mean_Fire_Cases / Mean_Population) * 100000
+  )
+
+# Check for data availability
+data_availability <- grouped_data %>%
+  summarise(
+    Total_Countries = n_distinct(country),
+    Year_Range = paste(min(year), max(year), sep = "-"),
+    Total_Records = n()
+  )
+
+# Display data availability
+print(data_availability)
+```
+
+Table showing the temporal trends of incidence rates for overall health,
+zoonotic and vector-borne diseases, and fire-related diseases per
+100,000 population in Amazonian countries. The table includes data for
+each country/region, as well as the sum total Amazon region, aggregated
+by year. The data provides a comprehensive view of disease incidence
+across the Amazon region over the study period.
+
+```{r, echo= FALSE}
+# Combine the grouped data and the overall incidence data
+combined_results <- bind_rows(grouped_data, 
+  overall_incidence  %>% mutate(
+    Incidence_Rate = (Total_Cases / (Total_Population * Total_Diseases)) * 100000,
+    Incidence_Zoo_Rate = (Total_Zoo_Cases / (Total_Population * Total_Diseases)) * 100000,
+    Incidence_Fire_Rate = (Total_Fire_Cases / (Total_Population * Total_Diseases)) * 100000,
+    country = "Total Amazon"
+  ) %>%
+  select(country, year, Incidence_Rate, Incidence_Zoo_Rate, Incidence_Fire_Rate)) %>%
+  arrange(year, factor(country, levels = c("Total Amazon", sort(unique(grouped_data$country))))) 
+
+
+
+# Export the combined data to an Excel file
+write.csv(combined_results, here("data", "descriptive_figs", "incidences_years.csv"))
+```
+
+```{r}
+# Combine the grouped data and the overall incidence data
+combined_results <- combined_results %>%
+  group_by()
+
+
+
+# Export the combined data to an Excel file
+write.csv(combined_results, here("data", "descriptive_figs", "incidences_years.csv"))
+```
+
+Visualize incidence rates by country over time:
+
+```{r}
+# Visualize incidence rates by country over time
+ggplot(grouped_data, aes(x = year)) +
+  geom_line(aes(y = Incidence_Rate, color = "Overall"), size = 1.5) +
+  geom_line(aes(y = Incidence_Zoo_Rate, color = "Zoonotic"), size = .7) +
+  geom_line(aes(y = Incidence_Fire_Rate, color = "Fire-related"), size = .7) +
+  facet_wrap(~ country) +
+  scale_color_manual(values = 
+                       c("Overall" = "#1f78b4", "Zoonotic" = "#33a02c", "Fire-related" = "#e31a1c")) +  # Color-blind friendly colors
+  theme_minimal() +
+  labs(title = "Tempral overall, Zoonotic, and Fire-related Incidence",
+       x = "Year",
+       y = "Incidence per 100,000",
+       color = "") +
+  theme(legend.position = "bottom") +
+  theme_cowplot()
+
+# Visualize incidence rates by country over time
+ggplot(grouped_data, aes(x = year)) +
+  geom_line(aes(y = Incidence_Rate, color = "Overall"), size = 1.5) +
+  geom_line(aes(y = Incidence_Zoo_Rate, color = "Zoonotic"), size = .7) +
+  geom_line(aes(y = Incidence_Fire_Rate, color = "Fire-related"), size = .7) +
+  facet_wrap(~ country) +
+  scale_color_manual(values = 
+                       c("Overall" = "#1f78b4", "Zoonotic" = "#33a02c", "Fire-related" = "#e31a1c")) +  # Color-blind friendly colors
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 15)) +  # More x-axis ticks
+  theme_minimal() +
+  labs(title = "Temporal Overall, Zoonotic, and Fire-related Incidence",
+       x = "Year",
+       y = "Incidence per 100,000",
+       color = "") +
+  theme_cowplot() +
+  theme(
+    legend.position = "right",
+    # legend.box = "horizontal",
+    axis.text.x = element_text(angle = 50, hjust = 1) ) #+
+  # guides(color = guide_legend(nrow = 1, byrow = TRUE))  # Place the legend inside one of the panels
+
+# Save the plot
+ggsave(here("data", "descriptive_figs", "ihealths_by_country.png"), width = 12, height = 8)
+```
+
+### Spatial visualization:
+
+Merging Data and Summary
+
+```{r}
+# Load the corrected shapefile with missing CODs
+our_amazon <- st_read(here("data/amazon_districts", "amazon_districts_ALBERS.shp")) %>%
+  mutate(COD = gsub("[._]", "", COD))
+
+# Group data by country and COD, then calculate mean weighted incidence rates
+grouped_data_cod <- combined_data %>%
+  group_by(country, COD) %>%
+  summarise(
+    Mean_Incidence_Rate = mean(ihealth, na.rm = TRUE),
+    Mean_Zoo_Incidence_Rate = mean(izoo, na.rm = TRUE),
+    Mean_Fire_Incidence_Rate = mean(ifire, na.rm = TRUE)
+  )
+
+# Merge the shapefile with your data
+merged_data <- our_amazon %>%
+  left_join(grouped_data_cod, by = "COD")
+
+## save spatial data with mean incidence per groups
+write_sf(merged_data, here("data", "incidences_mean.shp"))
+
+# Display summary of merged data
+summary(merged_data)
+```
+
+With ggplot:
+
+```{r, fig.width = 10, fig.height = 8}
+# Plot the mean weighted disease cases on the map with a gradient blue color scale
+health_map <- ggplot(data = merged_data) +
+  geom_sf(aes(fill = Mean_Incidence_Rate), color = "white") + # Draw borders with color="white"
+  scale_fill_gradient(
+    low = "lightblue", high = "darkblue", na.value = "grey50", 
+    breaks = c(1, 10, 100, 1000, 10000), # Custom breaks
+    labels = c("1", "10", "100", "1k", "10k") # Custom labels
+  ) +
+  theme_minimal() +
+  labs(title = "Mean Weighted Disease Cases by Municipality",
+       fill = "Cases/100,000 (log)") +
+  theme_cowplot()
+
+zoo_map <- ggplot(data = merged_data) +
+  geom_sf(aes(fill = Mean_Zoo_Incidence_Rate), color = "white") + # Draw borders with color="white"
+  scale_fill_gradient(
+    low = "lightgreen", high = "darkgreen", na.value = "grey50", 
+    breaks = c(1, 10, 100, 1000, 10000), # Custom breaks
+    labels = c("1", "10", "100", "1k", "10k") # Custom labels
+  ) +
+  theme_minimal() +
+  labs(title = "Mean Weighted Disease Cases by Municipality",
+       fill = "Cases/100,000 (log)") +
+  theme_cowplot()
+
+
+fire_map <- ggplot(data = merged_data) +
+  geom_sf(aes(fill = Mean_Fire_Incidence_Rate), color = "white") + # Draw borders with color="white"
+  scale_fill_gradient(
+    low = "lightpink", high = "darkred", na.value = "grey50", 
+    breaks = c(1, 10, 100, 1000, 10000), # Custom breaks
+    labels = c("1", "10", "100", "1k", "10k") # Custom labels
+  ) +
+  theme_minimal() +
+  labs(title = "Mean Weighted Disease Cases by Municipality",
+       fill = "Cases/100,000 (log)") +
+  theme_cowplot() +
+  theme(
+    legend.position = "bottom",
+    legend.box = "horizontal")
+
+health_map + zoo_map + fire_map
+
+# Save the plot
+ggsave(here("data", "descriptive_figs", "mean_disease_cases_map.png"), width = 12, height = 8)
+```
+
+Using tmap:
+
+```{r, fig.width = 12, fig.height = 8}
+# Calculate quantiles for custom breaks
+breaks <- quantile(merged_data$Mean_Incidence_Rate, probs = seq(0, 1, 0.2), na.rm = TRUE)
+
+# Ensure that tmap is set to plot mode
+tmap_mode("plot")
+
+# Plot the mean weighted disease cases on the map with tmap and custom breaks
+tm <- tm_shape(merged_data) +
+  tm_polygons("Mean_Incidence_Rate", 
+              breaks = breaks, 
+              palette = "Blues", 
+              title = "Weighted Incidence per 100,000") +
+  tm_layout(main.title = "Mean Weighted Disease Cases by Municipality",
+            legend.position = c("left", "bottom"),
+            legend.title.size = 1.2,
+            legend.text.size = 0.8)
+
+# Save the plot
+tmap_save(tm, here("data", "descriptive_figs", "mean_disease_cases_map_tmap.png"), width = 12, height = 8)
+# Display the plot
+print(tm)
+```
+
+Using mapview:
+
+```{r}
+# Calculate quantiles for custom breaks
+breaks <- quantile(merged_data$Mean_Incidence_Rate, probs = seq(0, 1, 0.2), na.rm = TRUE)
+
+# Plot the mean weighted disease cases on the map with mapview and custom breaks
+(map <- mapview(
+  merged_data, 
+  zcol = "Mean_Incidence_Rate", 
+  col.regions = colorRampPalette(brewer.pal(9, "Blues"))(5), 
+  at = breaks, 
+  legend = TRUE,
+  layer.name = "Weighted Incidence Rate per 100,000",
+  basemaps = c("OpenStreetMap", "Esri.WorldImagery", "Stamen.Terrain")
+))
+
+# # Save the interactive map to an HTML file
+# output_html_path <- here("data", "descriptive_figs", "mean_disease_cases_map.html")
+# mapshot(map, file = output_html_path)
+
+```
+
+Individual Country Maps:
+
+Brasil:
+
+```{r}
+# Filter data for Brazil
+brazil_data <- combined_data %>%
+  filter(country == "Brasil")
+
+# Merge the shapefile with Brazil data
+merged_brazil_data <- our_amazon %>%
+  left_join(brazil_data, by = "COD") %>%
+  filter(!is.na(country))
+
+# Calculate quantiles for custom breaks for each aspect
+breaks_overall <- quantile(merged_brazil_data$ihealth, probs = seq(0, 1, 0.2), na.rm = TRUE)
+breaks_zoo <- quantile(merged_brazil_data$izoo, probs = seq(0, 1, 0.2), na.rm = TRUE)
+breaks_fire <- quantile(merged_brazil_data$ifire, probs = seq(0, 1, 0.2), na.rm = TRUE)
+
+# Create mapview objects for Brazil with color-blind friendly palettes
+(map_brazil_overall <- mapview(
+  merged_brazil_data, 
+  zcol = "ihealth", 
+  col.regions = colorRampPalette(c("#eff3ff", "#bdd7e7", "#6baed6", "#3182bd", "#08519c"))(5),  # Color-blind friendly blue palette
+  at = breaks_overall, 
+  legend = TRUE,
+  layer.name = "Weighted Incidence Rate per 100,000 in Brazil (Overall)",
+  basemaps = c("OpenStreetMap", "Esri.WorldImagery", "Stamen.Terrain")
+))
+
+(map_brazil_zoo <- mapview(
+  merged_brazil_data, 
+  zcol = "izoo", 
+  col.regions = colorRampPalette(c("#e5f5e0", "#a1d99b", "#31a354", "#006d2c", "#00441b"))(5),  # Color-blind friendly green palette
+  at = breaks_zoo, 
+  legend = TRUE,
+  layer.name = "Zoonotic Incidence Rate per 100,000 in Brazil",
+  basemaps = c("OpenStreetMap", "Esri.WorldImagery", "Stamen.Terrain")
+))
+
+(map_brazil_fire <- mapview(
+  merged_brazil_data, 
+  zcol = "ifire", 
+  col.regions = colorRampPalette(c("#fee0d2", "#fc9272", "#fb6a4a", "#de2d26", "#a50f15"))(5),  # Color-blind friendly red palette
+  at = breaks_fire, 
+  legend = TRUE,
+  layer.name = "Fire-related Incidence Rate per 100,000 in Brazil",
+  basemaps = c("OpenStreetMap", "Esri.WorldImagery", "Stamen.Terrain")
+))
+```
+
