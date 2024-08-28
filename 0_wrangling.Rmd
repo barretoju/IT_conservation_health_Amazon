@@ -1,5 +1,5 @@
 ---
-title: "Join health, social/pop and environmental data for the Amazon project"
+title: "Wrangling and organizing health, socio-economic and environmental data for the Amazon project"
 author: "Julia Barreto"
 date: "`r Sys.Date()`"
 output:
@@ -52,7 +52,9 @@ Yearly health data per country at each provided geographic level (COD), e.g. mun
 ```{r}
 master_health <- read.csv(here("data", "raw", "master_health.csv"))
 
-knitr::kable(master_health[sample(nrow(master_health), 30),], booktabs = TRUE) %>%
+knitr::kable(master_health %>% 
+  sample_n(30) %>% 
+  print(row.names = FALSE), booktabs = TRUE) %>%
 kable_styling(latex_options = "scale_down") %>%
   column_spec(1:ncol(master_health), width = "auto")
 ```
@@ -92,7 +94,9 @@ pop_data <- read.csv(here("data", "raw", "pop.csv"))
 combined_data <- combined_data %>%
   left_join(pop_data, by= c( "COD", "year"))
 
-knitr::kable(pop_data[sample(nrow(pop_data), 30),], booktabs = TRUE) %>%
+knitr::kable(pop_data %>% 
+  sample_n(30) %>% 
+  print(row.names = FALSE), booktabs = TRUE) %>%
 kable_styling(latex_options = "scale_down") %>%
   column_spec(1:ncol(pop_data), width = "auto")
 ```
@@ -107,7 +111,9 @@ idh_data <- read.csv(here("data", "raw", "idh.csv"))
 combined_data <- combined_data %>%
   left_join(idh_data, by= c("country", "year"))
 
-knitr::kable(idh_data[sample(nrow(idh_data), 30),], booktabs = TRUE) %>%
+knitr::kable(idh_data %>% 
+  sample_n(30) %>% 
+  print(row.names = FALSE), booktabs = TRUE) %>%
 kable_styling(latex_options = "scale_down") %>%
   column_spec(1:ncol(idh_data), width = "auto")
 ```
@@ -128,7 +134,17 @@ combined_data <- combined_data %>%
 
 Indigenous territories percent per COD.
 ```{r}
-tis_data <- read.csv(here("data", "raw", "IT_data.csv"))
+tis_data <- read.csv(here("data", "raw", "IT_data.csv")) %>%
+  mutate(IT_presence = ifelse(tot_IT > 0, "yes_IT", "no_IT"),
+    IT_acknlgd = case_when(
+      acknlgd_IT > 0 & NOTackn_IT == 0 ~ "acknowledged_only",
+      NOTackn_IT > 0 & acknlgd_IT == 0 ~ "not_acknowledged",
+      NOTackn_IT > 0 & acknlgd_IT > 0  ~ "both",
+      TRUE ~ "none"))
+
+# Visualizando as novas colunas criadas
+head(tis_data)
+
 
 combined_data <- combined_data %>%
   left_join(tis_data, by= "COD")
@@ -136,15 +152,17 @@ combined_data <- combined_data %>%
 
 From forest/savanna cover,and percentage of ITs, we then calculate the metrics of landscape structure: (1) percentage of forest and savanna cover *outside* indigenous territories (*FS_notIT*), (2) percentage of forest cover and/or savanna *within recognized* indigenous territories (*ackn_IT*) , (3) percentage of forest cover and/or savanna *within unrecognized* indigenous territories (*NOTackn_IT*), (4) total percentage of forest cover and/or savanna *within indigenous territories* (considering both recognized and unrecognized; *tot_IT*) and (5) *total percentage of forest and/or savanna* cover (considering outside and inside indigenous territories; *FS_PLAND*). Also those of landscape configuration that refers to the degree of forest fragmentation, including edge density (*for_ED*), patchiness (*for_PD*), and the aggregation (*for_AI*) between those forest remnants (considering outside and inside indigenous territories). 
 
-```{r}
+```{r, echo= FALSE}
 combined_data <- combined_data %>% 
   mutate(FS_noIT = (for_PLAND + savanna_PLAND)- tot_IT,
          habitat_noIT = (for_PLAND + savanna_PLAND + notforest_PLAND)- tot_IT)
 
-knitr::kable(combined_data[sample(nrow(combined_data), 30), c(1:3, 25:dim(combined_data)[2])], 
+knitr::kable(combined_data %>% dplyr::select(1:3, 25:dim(combined_data)[2]) %>%
+  sample_n(30) %>% 
+  print(row.names = FALSE), 
              booktabs = TRUE) %>%
 kable_styling(latex_options = "scale_down") %>%
-  column_spec(1:15, width = "auto")
+  column_spec(1:17, width = "auto")
 ```
 
 # Fire pollutants (PM2.5)
@@ -168,6 +186,15 @@ combined_data <- combined_data %>%
   dplyr::select(country, everything())
 ```
 
+# Full master data
+
+```{r}
+knitr::kable(combined_data %>% 
+  sample_n(30) %>% 
+  print(row.names = FALSE), booktabs = TRUE) %>%
+kable_styling(latex_options = "scale_down") %>%
+  column_spec(1:ncol(combined_data), width = "auto")
+```
 
 
 ### Summarized data
@@ -323,8 +350,7 @@ for (country in unique_countries) {
 
 # Metadata
 
-```{r}
-# Criando a descrição do metadata
+```{r, echo= FALSE}
 metadata <- tribble(
   ~Column_Name,                 ~Description,
   "country",                    "Country code (BO- Bolivia, BR- Brazil, CO- Colombia, etc)",
@@ -362,6 +388,8 @@ metadata <- tribble(
   "NOTackn_IT",                 "Indigenous territories that are not officially acknowledged by government",
   "acknlgd_IT",                 "Government acknowledged indigenous territories",
   "for_noIT",                   "Forest area outside indigenous territories",
+  "IT_presence",                "Indicates presence (`yes_IT`) or absence (`no_IT`) of indigenous territories based on `tot_IT` value",
+  "IT_acknlgd",                 "Indicates recognition category of indigenous territories: `none`,  `acknowledged_only`, `not_acknowledged`, `both` based on `acknlgd_IT` and `NOTackn_IT` values",
   "FS_noIT",                    "Savanna and forest area outside indigenous territories",
   "habitat_noIT",               "Natural habitat including (forest, savanna and non-forest natural formation) outside indigenous territories",
   "pm25_SUM",                   "Annual sum of fire pollutant particular matter (PM2.5) per municipality",

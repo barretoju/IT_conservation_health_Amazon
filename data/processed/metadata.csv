@@ -34,6 +34,8 @@
 "NOTackn_IT","Indigenous territories that are not officially acknowledged by government"
 "acknlgd_IT","Government acknowledged indigenous territories"
 "for_noIT","Forest area outside indigenous territories"
+"IT_presence","Indicates presence (`yes_IT`) or absence (`no_IT`) of indigenous territories based on `tot_IT` value"
+"IT_acknlgd","Indicates recognition category of indigenous territories: `none`,  `acknowledged_only`, `not_acknowledged`, `both` based on `acknlgd_IT` and `NOTackn_IT` values"
 "FS_noIT","Savanna and forest area outside indigenous territories"
 "habitat_noIT","Natural habitat including (forest, savanna and non-forest natural formation) outside indigenous territories"
 "pm25_SUM","Annual sum of fire pollutant particular matter (PM2.5) per municipality"
