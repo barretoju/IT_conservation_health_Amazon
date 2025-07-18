@@ -1,0 +1,395 @@
+---
+title: "Modelling Indigenous forests and landscape structure effects on fire-related diseases"
+author: "Julia Barreto, Filipa Palmeirin & Paula Prist"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    thumbnails: false
+    lightbox: true
+    gallery: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = F, message = F, warning = F, error= F)
+library(here)
+library(tidyr)
+library(dplyr)
+library(skimr)
+library(mgcv)
+library(bbmle)
+library(DHARMa)
+library(broom)
+library(cowplot)
+theme_set(theme_cowplot())
+library(ggplot2)
+
+```
+
+
+# Data Loading and Preprocessing
+
+Load temporal health data and coordinates, merge and clean the datasets
+
+```{r}
+
+incidence_data <- read.csv(here("data", "incidence_data.csv"), header = T)
+
+fire_incidence_data <- incidence_data %>%
+  dplyr::select(country, COD, year, IDH, X, Y, fire.incidence, for_PD, for_ED, for_AI,
+                FS_PLAND, tot_IT, NOTackn_IT, acknlgd_IT, FS_noIT, pm25_SUM) %>%
+  # Removing NAs from the dataset
+  drop_na(fire.incidence)
+
+```
+
+# Data Overview and Distributions
+
+## Summary statistics and structure for dataset
+```{r}
+(sk <- skim(fire_incidence_data))
+```
+
+## Visualize the distribution of the response variables
+
+### Log-transformation of fire-related diseases incidence
+
+Log10 +1 aiming to reach normality
+```{r}
+hist(log10(fire_incidence_data$fire.incidence + 1))
+```
+
+# Modelling
+
+## Absence of effect (aka Baseline Model, 'null')
+Fit a model of absence of effect with only an intercept and random effects for year and spatial coordinates. This model serves as a baseline to compare against models with predictors. 
+
+```{r}
+mfire0 <- gam(log10(fire.incidence+1) ~ 1 + 
+                offset(IDH) + s(year, bs = "re") + s(X, Y), 
+                data = fire_incidence_data)
+# summary(mfire0) ; AIC(mfire0)
+```
+
+## Single-Predictor Models
+
+Fit models with single predictors for (1) overall forest cover (FS_PLAND), (2) indigenous territory (tot_IT), (3) forest cover outside indigenous territory (FS_noIT), (4) patch density (PD), (5) edge density (ED).
+Here, we first tested overall forest cover, IT and forest cover outside IT with both linear and polynomial (quadratic) terms to determine which has the best fit.
+
+```{r}
+# Model for forest cover within the entire COD/municipality (FS_PLAND)
+# Linear model for FS_PLAND 
+mfire_FS <- gam(log10(fire.incidence+1) ~ scale(FS_PLAND) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+
+# Polynomial model (second degree) for tot_IT
+mfire_IT2 <- gam(log10(fire.incidence+1) ~ poly(scale(tot_IT), 2) +
+                   offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# AICtab(mfire_IT2, mfire_IT)
+
+# Model for forest edge density (for_ED)
+mfire_ED <- gam(log10(fire.incidence+1) ~ scale(for_ED) +
+                    offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+
+# Model for patch density (for_PD)
+mfire_PD <- gam(log10(fire.incidence+1) ~ scale(for_PD) +
+                    offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+```
+
+## Double additive Models I: indigenous territories and forest cover outside IT
+Build additive models combining Indigenous Territories (tot_IT) and forest cover outside Indigenous Territories (FS_noIT)
+```{r}
+# Additive model with polynomial terms for tot_IT and FS_noIT
+mfire_ITFSno <- gam(log10(fire.incidence+1) ~ poly(scale(tot_IT), 2) + poly(scale(FS_noIT), 2) +
+                      offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_ITFSno); AIC(mfire_ITFSno)  # Display summary and AIC for the model
+```
+
+### Double additive models II: overall forest cover and fragmentation
+Build models combining overall forest cover (FS_PLAND) and fragmentation (for_ED and for_PD)
+```{r}
+# Additive model combining FS_PLAND and for_ED
+mfire_FSED <- gam(log10(fire.incidence+1) ~ scale(FS_PLAND) + scale(for_ED) +
+                       offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_FSED); AIC(mfire_FSED)  # Display summary and AIC for the model
+
+# Additive model combining FS_PLAND and for_PD
+mfire_FSPD <- gam(log10(fire.incidence+1) ~ scale(FS_PLAND) + scale(for_PD) +
+                       offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_FSPD); AIC(mfire_FSPD)  # Display summary and AIC for the model
+```
+
+### Double additive models III: indigenous territories and fragmentation
+```{r}
+mfire_TIED <- gam(log10(fire.incidence+1) ~ poly(scale(tot_IT),2) + scale(for_ED) +
+                  offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_TIED); AIC(mfire_TIED)
+
+mfire_TIPD <- gam(log10(fire.incidence+1) ~ poly(scale(tot_IT),2) + scale(for_PD) +
+                  offset(IDH) +  s(year, bs = "re") + s(X, Y),
+                data = fire_incidence_data)
+# summary(mfire_TIPD); AIC(mfire_TIPD) 
+```
+
+### Tripple additives: indigenous territories + forest cover outside IT + fragmentation
+```{r}
+mfire_ITFSED <- gam(log10(fire.incidence+1) ~ poly(scale(tot_IT),2) + 
+                         poly(scale(FS_noIT),2) + scale(for_ED) +
+                         offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_ITFSED); AIC(mfire_ITFSED)
+
+mfire_ITFSPD <- gam(log10(fire.incidence+1) ~ poly(scale(tot_IT),2) + 
+                         poly(scale(FS_noIT),2) + scale(for_PD) +
+                         offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_ITFSPD); AIC(mfire_ITFSPD) 
+```
+
+
+## Interactive Models I: indigenous territories * forest cover outside IT
+```{r}
+# interativos IT * forest (FS_noIT)
+mfire_ITFSno1i <- gam(log10(fire.incidence+1) ~ poly(scale(tot_IT),2) * scale(FS_noIT) +
+                      offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_ITFSno1i); AIC(mfire_ITFSno1i) 
+
+mfire_IT1FSnoi <- gam(log10(fire.incidence+1) ~ scale(tot_IT) * poly(scale(FS_noIT, 2)) +
+                       offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_IT1FSnoi); AIC(mfire_IT1FSnoi) 
+```
+
+### Interactive Models II: overall forest cover * fragmentation
+```{r}
+## interactive landscape structure
+mfire_FSEDi <- gam(log10(fire.incidence+1) ~ 
+                     poly(scale(FS_PLAND),2) * scale(for_ED) +
+                       offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_FSEDi); AIC(mfire_FSEDi) 
+
+mfire_FSPDi <- gam(log10(fire.incidence+1) ~ 
+                        poly(scale(FS_PLAND),2) * scale(for_PD) +
+                       offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_FSPDi); AIC(mfire_FSPDi)
+```
+
+## Interactive Models III: indigenous territories * fragmentation
+```{r}
+mfire_TIEDi <- gam(log10(fire.incidence+1) ~ poly(scale(tot_IT),2) * scale(for_ED) +
+                    offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_TIEDi); AIC(mfire_TIEDi) 
+
+mfire_TIPDi <- gam(log10(fire.incidence+1) ~  poly(scale(tot_IT),2) * scale(for_PD) +
+                    offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_TIPDi); AIC(mfire_TIPDi)
+```
+
+### Additive and interative model but keeping interaction with only two varibles: 
+
+#### indigenous territories + ( forest cover outside IT * fragmentation )
+```{r}
+mfire_ITiFSED <- gam(log10(fire.incidence+1) ~ poly(scale(tot_IT),2) + poly(scale(FS_noIT),2) * scale(for_ED) +
+                      offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_ITiFSED); AIC(mfire_ITiFSED) 
+
+mfire_ITiFSPD <- gam(log10(fire.incidence+1) ~ poly(scale(tot_IT),2) + poly(scale(FS_noIT),2) * scale(for_PD) +
+                      offset(IDH) +  s(year, bs = "re") + s(X, Y),
+                data = fire_incidence_data)
+# summary(mfire_ITiFSPD); AIC(mfire_ITiFSPD) 
+```
+
+#### forest cover outside IT + ( indigenous territories * fragmentation )
+```{r}
+mfire_FSiTIED <- gam(log10(fire.incidence+1) ~ poly(scale(FS_noIT),2) + 
+                       poly(scale(tot_IT),2) * scale(for_ED) +
+                       offset(IDH) +  s(year, bs = "re") + s(X, Y), 
+                data = fire_incidence_data)
+# summary(mfire_FSiTIED); AIC(mfire_FSiTIED)
+
+mfire_FSiTIPD <- gam(log10(fire.incidence+1) ~ poly(scale(FS_noIT),2) + 
+                       poly(scale(tot_IT),2) * scale(for_PD) +
+                       offset(IDH) + s(year, bs = "re") + s(X, Y),
+                data = fire_incidence_data)
+# summary(mfire_FSiTIPD); AIC(mfire_FSiTIPD)
+```
+
+#### fragmentation + ( indigenous territories * forest cover outside IT )
+```{r}
+mfire_EDiFSTI1 <- gam(log10(fire.incidence+1) ~ poly(scale(FS_noIT),2) * scale(tot_IT) + scale(for_ED) +
+                       offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_EDiFSTI1); AIC(mfire_EDiFSTI1)
+
+mfire_EDiFS1TI <- gam(log10(fire.incidence+1) ~ scale(FS_noIT) * poly(scale(tot_IT),2) + scale(for_ED) +
+                       offset(IDH) +  s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_EDiFS1TI); AIC(mfire_EDiFS1TI)
+
+mfire_PDiFSTI1 <- gam(log10(fire.incidence+1) ~ poly(scale(FS_noIT),2) * scale(tot_IT) + scale(for_PD) +
+                       offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = fire_incidence_data)
+# summary(mfire_PDiFSTI1); AIC(mfire_PDiFSTI1)
+
+mfire_PDiFS1TI <- gam(log10(fire.incidence+1) ~ scale(FS_noIT) * poly(scale(tot_IT),2) + scale(for_PD) +
+                       offset(IDH) + s(year, bs = "re") + s(X, Y),
+                data = fire_incidence_data)
+# summary(mfire_PDiFS1TI); AIC(mfire_PDiFS1TI)
+```
+
+# Model Selection Using AIC Comparison
+Perform model selection by comparing all models based on AIC using AICtab function
+```{r}
+(mod.sel <- AICtab(
+              # Absence of effect (aka Baseline Model, 'null')
+              mfire0,
+              # Single-Predictor Models
+              mfire_FS,
+              mfire_IT2,
+              mfire_ED,
+              mfire_PD,
+              # Double additive Models I: indigenous territories and forest cover outside IT
+              mfire_ITFSno,
+              # Double additive models II: overall forest cover and fragmentation
+              mfire_FSED,
+              mfire_FSPD,
+              # Double additive models III: indigenous territories and fragmentation
+              mfire_TIED,
+              mfire_TIPD,
+              # Tripple additives: indigenous territories + forest cover outside IT + fragmentation
+              mfire_ITFSED,
+              mfire_ITFSPD,
+              ## Interactive Models I: indigenous territories * forest cover outside IT
+              mfire_ITFSno1i,
+              mfire_IT1FSnoi,
+              # Interactive Models II: overall forest cover * fragmentation
+              mfire_FSEDi,
+              mfire_FSPDi,
+              # Interactive Models III: indigenous territories * fragmentation
+              mfire_TIEDi,
+              mfire_TIPDi,
+              # Additive and interative model but keeping interaction with only two varibles: 
+              # indigenous territories + ( forest cover outside IT * fragmentation )
+              mfire_ITiFSED,
+              mfire_ITiFSPD,
+              # forest cover outside IT + ( indigenous territories * fragmentation )
+              mfire_FSiTIED,
+              mfire_FSiTIPD,
+              # fragmentation + ( indigenous territories * forest cover outside IT )
+              mfire_EDiFSTI1,
+              mfire_EDiFS1TI,
+              mfire_PDiFSTI1,
+              mfire_PDiFS1TI,
+       base = TRUE, weights = TRUE))  # Include null model and calculate weights
+```
+# Top selected model output
+
+Summarize the selected model to examine the fitted results
+```{r}
+summary(mfire_EDiFSTI1)
+```
+
+Tidy up the model summary to get a clean output of the parametric terms
+```{r}
+tidy(mfire_EDiFSTI1, parametric = TRUE) 
+```
+
+# Model Diagnostics
+
+```{r}
+resid <- simulateResiduals(mfire_EDiFSTI1)
+plot(resid)
+```
+
+```{r}
+testResiduals(resid, plot = TRUE)
+```
+
+Look at selected predictors:
+```{r}
+plotResiduals(resid, fire_incidence_data$FS_noIT); plotResiduals(resid, fire_incidence_data$tot_IT); plotResiduals(resid, fire_incidence_data$for_ED)
+```
+
+# Prediction plot
+
+We originally use orthogonal polynomials (i.e. 'poly(predictor_variable, 2)') for model selection due to their statistical advantages, which often leads to more reliable statistical inference. So model selection was based on orthogonal polynomials (`poly(x, 2)`) for robustness, but for practical visualization purpose, we use regular quadratic terms (`I(x^2)`) for clarity. The overall predicted trends (i.e., the shapes of the response curves) produced by a model using orthogonal polynomials (`poly(x, 2)`) and regular quadratic terms (`I(x^2)`) are exactly the same. Both models capture the quadratic relationships in the data.
+
+```{r}
+mfire_EDiFSTI1_quad <- gam(log10(fire.incidence + 1) ~ scale(for_ED) + 
+                            scale(FS_noIT) * scale(tot_IT) + I(scale(FS_noIT)^2) * scale(tot_IT) +
+                             offset(IDH) + s(year, bs = "re") + s(X, Y),
+                          data = fire_incidence_data)
+
+summary(mfire_EDiFSTI1_quad)
+```
+Plot with new_data:
+
+```{r}
+# Define three levels of Forest Cover Outside IT (FS_noIT) and Edge Density (for_ED)
+new_data <- expand.grid(
+  tot_IT = seq(min(fire_incidence_data$tot_IT, na.rm = TRUE), max(fire_incidence_data$tot_IT, na.rm = TRUE), length.out = 100),
+  for_ED = c(10, 25, 50),  # Three fixed levels of Edge Density
+  FS_noIT = c(15, 45, 75),  # Three levels of Forest Cover Outside IT
+  IDH = median(fire_incidence_data$IDH, na.rm = TRUE), 
+  year = median(fire_incidence_data$year, na.rm = TRUE),
+  X = median(fire_incidence_data$X, na.rm = TRUE),
+  Y = median(fire_incidence_data$Y, na.rm = TRUE)
+)
+
+# Adjust the filtering based on the specific rules for tot_IT and FS_noIT
+new_data <- new_data %>% 
+  filter((FS_noIT == 15 & tot_IT <= 85) |
+         (FS_noIT == 45 & tot_IT <= 55) |
+         (FS_noIT == 75 & tot_IT <= 25))
+
+# Now generate the predictions after filtering
+predictions <- predict(mfire_EDiFSTI1_quad, newdata = new_data, type = "response", se.fit = TRUE)
+
+# Back-transforming predictions
+new_data$predicted <- 10^predictions$fit - 1
+new_data$conf.low <- 10^(predictions$fit - 1.96 * predictions$se.fit) - 1 
+new_data$conf.high <- 10^(predictions$fit + 1.96 * predictions$se.fit) - 1
+
+# Plot with tot_IT on the x-axis and facets for different levels of FS_noIT
+(fire <- ggplot(new_data, aes(x = tot_IT, y = predicted, 
+                              linetype = as.factor(FS_noIT), color = as.factor(FS_noIT))) +
+  geom_line(linewidth = 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = as.factor(FS_noIT)), 
+              linetype= 0, alpha = 0.2) +
+  labs(
+    x = "Extent of Indigenous Territories (%)",
+    y = "Fire-related\n diseases' incidence",
+    color = "Forest cover outside IT",
+    fill = "Forest cover outside IT",
+    linetype = "Forest cover outside IT"
+  ) +
+  theme(legend.position = "top",
+              text = element_text(size = 16),
+        axis.title.y = element_text(size = 16, lineheight = 1.1),
+        axis.title.x = element_text(size = 16)) +
+  scale_color_manual(values = c("#66c2a4", "#238b45", "#00441b"), labels = c("15%", "45%", "75%")) +
+  scale_fill_manual(values = c("#66c2a4", "#238b45", "#00441b"), labels = c("15%", "45%", "75%")) +
+    scale_linetype_manual(values = c("dotted", "longdash", "solid")) +
+  facet_wrap(~ for_ED, labeller = as_labeller(c("10" = "Low Edge Density (10)", 
+                                                "25" = "Medium Edge Density (25)", 
+                                                "50" = "High Edge Density (50)"))))
+
+# Save the plot
+ggsave(here("outputs", "figures", "fire_topmodel_filtered.png"), width = 9, height = 4)
+```

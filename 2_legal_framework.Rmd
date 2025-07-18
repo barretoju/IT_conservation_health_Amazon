@@ -1,0 +1,322 @@
+---
+title: "Obj 3: Accounting for the legal framework of the ITs"
+author: "Julia Barreto, Filipa Palmeirim & Paula Prist"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    thumbnails: false
+    lightbox: true
+    gallery: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = F, message = F, warning = F, error= F)
+# Load necessary libraries for data manipulation, modeling, visualization, and diagnostics
+library(here)
+library(tidyr); library(dplyr)
+library(skimr)
+library(fitdistrplus)
+library(GGally)      # Visualization of data relationships (e.g., ggpairs)
+library(cowplot)     # Enhanced plotting themes, set default theme
+theme_set(theme_cowplot())
+library(mgcv)        # Generalized Additive Models (GAMs) for modeling
+library(bbmle)       # Maximum likelihood estimation tools
+library(DHARMa)      # Diagnostics for hierarchical (mixed) models
+library(car)         # Companion to Applied Regression (diagnostics, collinearity)
+library(broom)
+library(ggeffects)   # Generate marginal effects and predictions from models
+library(patchwork)   # Combine multiple ggplot plots
+```
+
+
+
+# Data Loading and Preprocessing
+
+Load temporal health data and coordinates, merge and clean the datasets
+
+```{r}
+incidence_data <- read.csv(here("data", "incidence_data.csv"), header = T)
+
+health.data <- incidence_data %>%
+  dplyr::select(country, COD, year, X, Y, IDH, health.incidence, NOTackn_IT, acknlgd_IT)
+
+fire.data <- incidence_data %>%
+  dplyr::select(country, COD, year, X, Y, IDH, fire.incidence, NOTackn_IT, acknlgd_IT)
+
+zoonotic.data <- incidence_data %>%
+  dplyr::select(country, COD, year, X, Y, IDH, zoonotic.incidence, NOTackn_IT, acknlgd_IT)
+```
+
+# Health Overview
+
+## Summary statistics and structure for dataset
+```{r}
+(sk <- skim(health.data))
+```
+
+# Modelling
+
+First, to decide whether to include or not the quadratic version of each of the variables: recognized and unrecognized IT, we run models including either recognized or unrecognised IT including and excluding the quadratic term.
+
+## Health in general
+
+```{r}
+#mhealth.recognized <- gam(log10(health.incidence+1) ~ scale(acknlgd_IT) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+#                data = health.data)
+#summary(mhealth.recognized); AIC(mhealth.recognized) 
+
+mhealth.recognized2 <- gam(log10(health.incidence+1) ~ poly(scale(acknlgd_IT), 2) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = health.data)
+summary(mhealth.recognized2); AIC(mhealth.recognized2) 
+
+#mhealth.unrecognized <- gam(log10(health.incidence+1) ~ scale(NOTackn_IT) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+#                data = health.data)
+#summary(mhealth.unrecognized); AIC(mhealth.unrecognized) 
+
+mhealth.unrecognized2 <- gam(log10(health.incidence+1) ~ poly(scale(NOTackn_IT), 2) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = health.data)
+```
+
+Now fit final model using versions with best fit for the variables:
+```{r}
+mhealth <- gam(log10(health.incidence+1) ~ poly(scale(acknlgd_IT), 2) + poly(scale(NOTackn_IT), 2) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = health.data)
+summary(mhealth)
+```
+
+### Model Diagnostics: health in general
+```{r}
+resid <- simulateResiduals(mhealth)
+testResiduals(resid, plot = TRUE)
+```
+
+
+Repeat routine for the other main groups of diseases:
+
+## Fire-related
+
+```{r}
+#mfire.recognized <- gam(log10(fire.incidence+1) ~ scale(acknlgd_IT) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+#                data = fire.data)
+
+mfire.recognized2 <- gam(log10(fire.incidence+1) ~ poly(scale(acknlgd_IT), 2) + 
+                           offset(IDH) + s(year, bs = "re") + s(X, Y), data = fire.data)
+
+#mfire.unrecognized <- gam(log10(fire.incidence+1) ~ scale(NOTackn_IT) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+#                data = fire.data)
+
+mfire.unrecognized2 <- gam(log10(fire.incidence+1) ~ poly(scale(NOTackn_IT), 2) + 
+                             offset(IDH) + s(year, bs = "re") + s(X, Y), data = fire.data)
+
+mfire <- gam(log10(fire.incidence+1) ~ poly(scale(acknlgd_IT), 2) + poly(scale(NOTackn_IT), 2) + 
+               offset(IDH) + s(year, bs = "re") + s(X, Y),  data = fire.data)
+summary(mfire)
+```
+
+### Model Diagnostics: fire-related diseases
+```{r}
+resid <- simulateResiduals(mfire)
+testResiduals(resid, plot = TRUE)
+```
+
+## Zoonotic and vector-borne diseases
+
+```{r}
+#mzoonotic.recognized <- gam(log10(zoonotic.incidence+1) ~ scale(acknlgd_IT) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+#                data = zoonotic.data)
+#summary(mzoonotic.recognized); AIC(mzoonotic.recognized) 
+
+mzoonotic.recognized2 <- gam(log10(zoonotic.incidence+1) ~ poly(scale(acknlgd_IT), 2) + 
+                               offset(IDH) + s(year, bs = "re") + s(X, Y), data = zoonotic.data)
+
+mzoonotic.unrecognized <- gam(log10(zoonotic.incidence+1) ~ scale(NOTackn_IT) + 
+                                offset(IDH) + s(year, bs = "re") + s(X, Y), data = zoonotic.data)
+
+#mzoonotic.unrecognized2 <- gam(log10(zoonotic.incidence+1) ~ poly(scale(NOTackn_IT), 2) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+#                data = zoonotic.data)
+#summary(mzoonotic.unrecognized2); AIC(mzoonotic.unrecognized2) 
+
+mzoonotic <- gam(log10(zoonotic.incidence+1) ~ poly(scale(acknlgd_IT), 2) + scale(NOTackn_IT) + 
+                   offset(IDH) + s(year, bs = "re") + s(X, Y), data = zoonotic.data)
+summary(mzoonotic)
+```
+
+
+### Model Diagnostics: fire-related diseases
+```{r}
+resid <- simulateResiduals(mzoonotic)
+testResiduals(resid, plot = TRUE)
+```
+
+# Prediction plots
+
+Likewise, originally use orthogonal polynomials (i.e. 'poly(predictor_variable, 2)') for model selection due to their statistical advantages, which often leads to more reliable statistical inference. So model selection was based on orthogonal polynomials (`poly(x, 2)`) for robustness, but for practical visualization purpose, we use regular quadratic terms (`I(x^2)`) for clarity. The overall predicted trends (i.e., the shapes of the response curves) produced by a model using orthogonal polynomials (`poly(x, 2)`) and regular quadratic terms (`I(x^2)`) are generally comparable. Both models capture the quadratic relationships in the data.
+
+Plot both predictors in the same plot
+## Health in general
+```{r}
+mhealth_quad <- gam(log10(health.incidence + 1) ~ scale(acknlgd_IT) + I(scale(acknlgd_IT)^2) + 
+                      scale(NOTackn_IT) + I(scale(NOTackn_IT)^2) + offset(IDH) + s(year, bs = "re") + s(X, Y),
+                          data = health.data)
+
+preds_acknlgd <- ggpredict(mhealth_quad, terms = c("acknlgd_IT [all]"))
+preds_NOTackn <- ggpredict(mhealth_quad, terms = c("NOTackn_IT [all]"))
+
+# Coefficients and standard errors from the summary of mhealth
+acknlgd_beta1 <- round(summary(mhealth)$p.coeff[2], 2)
+acknlgd_beta2 <- round(summary(mhealth)$p.coeff[3], 2)
+acknlgd_se1 <- round(summary(mhealth)$se[2], 2)
+acknlgd_se2 <- round(summary(mhealth)$se[3], 2)
+notackn_beta1 <- round(summary(mhealth)$p.coeff[4], 2)
+notackn_beta2 <- round(summary(mhealth)$p.coeff[5], 2)
+notackn_se1 <- round(summary(mhealth)$se[4], 2)
+notackn_se2 <- round(summary(mhealth)$se[5], 2)
+
+# Add the text with coefficients, SE, and R² on the plot
+(health <- ggplot() +
+  # Linha para acknlgd_IT (territórios indígenas reconhecidos)
+  geom_line(data = preds_acknlgd, aes(x = x, y = predicted, color = "Recognized"), linewidth = 1.2) +
+  geom_ribbon(data = preds_acknlgd, aes(x = x, ymin = conf.low, ymax = conf.high, fill = "Recognized"), alpha = 0.2) +
+  
+  # Linha para NOTackn_IT (territórios indígenas não reconhecidos)
+  geom_line(data = preds_NOTackn, aes(x = x, y = predicted, color = "Unrecognized"), linewidth = 1.2) +
+  geom_ribbon(data = preds_NOTackn, aes(x = x, ymin = conf.low, ymax = conf.high, fill = "Unrecognized"), alpha = 0.2) +
+  
+  # Adicionar texto com beta + - SE e R²
+  annotate("text", x = 55, y = 3030, label = paste0("β1 = ", acknlgd_beta1, " ± ", acknlgd_se1,
+                                                   "\nβ2 = ", acknlgd_beta2, " ± ", acknlgd_se2),
+           color = "#5C6E3A", hjust = 0) +
+  annotate("text", x = 70, y = 9700, label = paste0("β1 = ", notackn_beta1, " ± ", notackn_se1,
+                                                   "\nβ2 = ", notackn_beta2, " ± ", notackn_se2), 
+           color = "#7A5F3A", hjust = 0) +
+  
+  # Personalizar rótulos e título
+  labs(
+    x = "Extent of indigenous territories",
+    y = "Overall health\n Impact/100,000",
+    color = "Legal status of ITs:",
+    fill = "Legal status of ITs:"  # Add this line to ensure the fill legend appears as well
+  ) +
+  # Ajustar a escala das cores para as duas linhas
+  scale_color_manual(values = c("Recognized" = "#5C6E3A", "Unrecognized" = "#7A5F3A")) +
+  scale_fill_manual(values = c("Recognized" = "#5C6E3A", "Unrecognized" = "#7A5F3A")) +
+  theme_cowplot() +
+  theme(legend.position = c(0.05, 0.8)))
+
+```
+## Fire-related
+
+```{r}
+mfire_quad <- gam(log10(fire.incidence + 1) ~ scale(acknlgd_IT) + I(scale(acknlgd_IT)^2) + 
+                      scale(NOTackn_IT) + I(scale(NOTackn_IT)^2) + offset(IDH) + s(year, bs = "re") + s(X, Y),
+                      data = fire.data)
+
+preds_acknlgd <- ggpredict(mfire_quad, terms = c("acknlgd_IT [all]"))
+preds_NOTackn <- ggpredict(mfire_quad, terms = c("NOTackn_IT [all]"))
+
+# Coefficients and standard errors from the summary of mfire
+acknlgd_beta1 <- round(summary(mfire)$p.coeff[2], 2)
+acknlgd_beta2 <- round(summary(mfire)$p.coeff[3], 2)
+acknlgd_se1 <- round(summary(mfire)$se[2], 2)
+acknlgd_se2 <- round(summary(mfire)$se[3], 2)
+notackn_beta1 <- round(summary(mfire)$p.coeff[4], 2)
+notackn_beta2 <- round(summary(mfire)$p.coeff[5], 2)
+notackn_se1 <- round(summary(mfire)$se[4], 2)
+notackn_se2 <- round(summary(mfire)$se[5], 2)
+
+# Add the text with coefficients, SE, and R² on the plot
+(fire <- ggplot() +
+  # Linha para acknlgd_IT (territórios indígenas reconhecidos)
+  geom_line(data = preds_acknlgd, aes(x = x, y = predicted, color = "Recognized"), linewidth = 1.2) +
+  geom_ribbon(data = preds_acknlgd, aes(x = x, ymin = conf.low, ymax = conf.high, fill = "Recognized"), alpha = 0.2) +
+  
+  # Linha para NOTackn_IT (territórios indígenas não reconhecidos)
+  geom_line(data = preds_NOTackn, aes(x = x, y = predicted, color = "Unrecognized"), linewidth = 1.2) +
+  geom_ribbon(data = preds_NOTackn, aes(x = x, ymin = conf.low, ymax = conf.high, fill = "Unrecognized"), alpha = 0.2) +
+  
+  # Adicionar texto com beta + - SE e R²
+  annotate("text", x = 38, y = 360, label = paste0("β1 = ", acknlgd_beta1, " ± ", acknlgd_se1,
+                                                   "\nβ2 = ", acknlgd_beta2, " ± ", acknlgd_se2), 
+           color = "#5C6E3A", hjust = 0) +
+  annotate("text", x = 45, y = 600, label = paste0("β1 = ", notackn_beta1, " ± ", notackn_se1,
+                                                   "\nβ2 = ", notackn_beta2, " ± ", notackn_se2), 
+           color = "#7A5F3A", hjust = 0) +
+  
+  # Personalizar rótulos e título
+  labs(
+    x = "Extent of indigenous territories",
+    y = "Fire-related\n diseases' incidence",
+    color = "Legal status of ITs:",
+    fill = "Legal status of ITs:"  # Add this line to ensure the fill legend appears as well
+  ) +
+  # Ajustar a escala das cores para as duas linhas
+  scale_color_manual(values = c("Recognized" = "#5C6E3A", "Unrecognized" = "#7A5F3A")) +
+  scale_fill_manual(values = c("Recognized" = "#5C6E3A", "Unrecognized" = "#7A5F3A")) +
+  theme_cowplot() +
+  theme(legend.position = "top"))
+```
+## Zoonotic and vector-borne diseases
+
+```{r}
+mzoonotic_quad <- gam(log10(zoonotic.incidence + 1) ~ scale(acknlgd_IT) + I(scale(acknlgd_IT)^2) + 
+                      scale(NOTackn_IT) + offset(IDH) + s(year, bs = "re") + s(X, Y),
+                      data = zoonotic.data)
+
+preds_acknlgd <- ggpredict(mzoonotic_quad, terms = c("acknlgd_IT [all]"))
+preds_NOTackn <- ggpredict(mzoonotic_quad, terms = c("NOTackn_IT [all]"))
+
+# Coefficients and standard errors
+acknlgd_beta1 <- round(summary(mzoonotic)$p.coeff[2], 2)
+acknlgd_beta2 <- round(summary(mzoonotic)$p.coeff[3], 2)
+acknlgd_se1 <- round(summary(mzoonotic)$se[2], 2)
+acknlgd_se2 <- round(summary(mzoonotic)$se[3], 2)
+notackn_beta <- round(summary(mzoonotic)$p.coeff[4], 2)
+notackn_se <- round(summary(mzoonotic)$se[4], 2)
+
+# Add the text with coefficients, SE, and R² on the plot
+(zoonotic <- ggplot() +
+  # Linha para acknlgd_IT (territórios indígenas reconhecidos)
+  geom_line(data = preds_acknlgd, aes(x = x, y = predicted, color = "Recognized"), linewidth = 1.2) +
+  geom_ribbon(data = preds_acknlgd, aes(x = x, ymin = conf.low, ymax = conf.high, fill = "Recognized"), alpha = 0.2) +
+  
+  # Linha para NOTackn_IT (territórios indígenas não reconhecidos)
+  geom_line(data = preds_NOTackn, aes(x = x, y = predicted, color = "Unrecognized"), linewidth = 1.2) +
+  geom_ribbon(data = preds_NOTackn, aes(x = x, ymin = conf.low, ymax = conf.high, fill = "Unrecognized"), alpha = 0.2) +
+  
+  # Adicionar texto com beta + - SE e R²
+  annotate("text", x = 55, y = 5600, label = paste0("β1 = ", round(acknlgd_beta1, 2), " ± ", round(acknlgd_se1, 2),
+                                                   "\nβ2 = ", round(acknlgd_beta2, 2), " ± ", round(acknlgd_se2, 2)), 
+           color = "#5C6E3A", hjust = 0) +
+  annotate("text", x = 45, y = 1900, label = paste0("β = ", round(notackn_beta, 3), " ± ", round(notackn_se, 3)), 
+           color = "#7A5F3A", hjust = 0) +
+  
+  # Personalizar rótulos e título
+  labs(
+    x = "Extent of indigenous territories",
+    y = "Zoonotic/vector-borne\n diseases",
+    color = "Legal status of ITs:",
+    fill = "Legal status of ITs:"  # Add this line to ensure the fill legend appears as well
+  ) +
+  # Ajustar a escala das cores para as duas linhas
+  scale_color_manual(values = c("Recognized" = "#5C6E3A", "Unrecognized" = "#7A5F3A")) +
+  scale_fill_manual(values = c("Recognized" = "#5C6E3A", "Unrecognized" = "#7A5F3A")) +
+  theme_cowplot() +
+  theme(legend.position = "top") +
+    ylim(0, 8000))
+
+```
+
+## Combining plots
+```{r}
+health + 
+  (fire + theme(legend.position = "none", axis.title.x = element_blank())) / 
+  (zoonotic + theme(legend.position = "none")) +
+  plot_annotation(tag_levels = "a") + plot_layout(widths = c(2, 1))
+
+ggsave(here("outputs", "figures", "legal_panel.png"), width= 10, height= 6)
+```
+

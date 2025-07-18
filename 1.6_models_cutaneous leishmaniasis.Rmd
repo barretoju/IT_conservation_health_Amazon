@@ -1,0 +1,366 @@
+---
+title: "Modelling Indigenous forests and landscape structure effects on Cutaneous Leishmaniasis"
+author: "Julia Barreto, Filipa Palmeirin & Paula Prist"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    thumbnails: false
+    lightbox: true
+    gallery: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = F, message = F, warning = F, error= F)
+library(here)
+library(tidyr)
+library(dplyr)
+library(skimr)
+library(mgcv)
+library(bbmle)
+library(DHARMa)
+library(broom)
+library(cowplot)
+theme_set(theme_cowplot())
+library(ggplot2)
+```
+
+
+# Data Loading and Preprocessing
+
+Load temporal health data and coordinates, merge and clean the datasets
+
+```{r}
+incidence_data <- read.csv(here("data", "incidence_data.csv"), header = T)
+
+cutaneous_leishmaniasis_incidence_data <- incidence_data %>%
+  dplyr::select(country, COD, year, IDH, X, Y, cutaneous_leishmaniasis.incidence, for_PD, 
+                for_ED, for_AI, FS_PLAND, tot_IT, NOTackn_IT, acknlgd_IT, 
+                FS_noIT, pm25_SUM) %>%
+  # Removing NAs from the dataset
+  drop_na(cutaneous_leishmaniasis.incidence)
+```
+
+# Data Overview and Distributions
+
+## Summary statistics and structure for dataset
+```{r}
+(sk <- skim(cutaneous_leishmaniasis_incidence_data))
+```
+
+## Visualize the distribution of the response variables
+
+### Log-transformation of cutaneous_leishmaniasis diseases incidence
+
+Log10+1 aiming to reach normality
+```{r}
+hist(log10(cutaneous_leishmaniasis_incidence_data$cutaneous_leishmaniasis.incidence + 1))
+```
+
+# Modelling
+
+Generally, we build GAM spatial models contain random effects for year and geographical coordinates. For cutaneous_leishmaniasis diseases incidence we use gamma family of distribution and log link function.
+
+## Absence of effect (aka Baseline Model, 'null')
+Fit a model of absence of effect with only an intercept and random effects for year and spatial coordinates. This model serves as a baseline to compare against models with predictors. 
+
+```{r}
+
+mcutaneous_leishmaniasis0 <- gam(log10(cutaneous_leishmaniasis.incidence+1) ~ 1 + 
+                                   offset(IDH) + s(year, bs = "re") +
+                                   s(X, Y),data = cutaneous_leishmaniasis_incidence_data)
+```
+
+## Single-Predictor Models
+
+Fit models with single predictors for (1) overall forest cover (FS_PLAND), (2) indigenous territory (tot_IT), (3) forest cover outside indigenous territory (FS_noIT), (4) patch density (PD), (5) edge density (ED).
+Here, we first tested overall forest cover, IT and forest cover outside IT with both linear and polynomial (quadratic) terms to determine which has the best fit.
+
+```{r}
+# Model for forest cover within the entire COD/municipality (FS_PLAND); Polynomial model (second degree) for FS_PLAND (commented out as it was not selected)
+mcutaneous_leishmaniasis_FS2 <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(FS_PLAND), 2) + offset(IDH) + s(year, bs = "re") +
+                      s(X, Y), data = cutaneous_leishmaniasis_incidence_data)
+#summary(mcutaneous_leishmaniasis_FS2); AIC(mcutaneous_leishmaniasis_FS2) 
+
+# Model for Indigenous Territories (tot_IT); Polynomial model (second degree) for tot_IT
+mcutaneous_leishmaniasis_IT2 <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(tot_IT), 2) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+summary(mcutaneous_leishmaniasis_IT2); AIC(mcutaneous_leishmaniasis_IT2)  # Display summary and AIC for the polynomial model
+
+# Model for forest edge density (for_ED)
+mcutaneous_leishmaniasis_ED <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ scale(for_ED) +offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_ED); AIC(mcutaneous_leishmaniasis_ED)  # Display summary and AIC for for_ED model
+
+# Model for patch density (for_PD)
+mcutaneous_leishmaniasis_PD <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_PD); AIC(mcutaneous_leishmaniasis_PD)  # Display summary and AIC for for_PD model
+```
+
+## Double additive Models I: indigenous territories and forest cover outside IT
+Build additive models combining Indigenous Territories (tot_IT) and forest cover outside Indigenous Territories (FS_noIT)
+```{r}
+# Additive model with polynomial terms for tot_IT and FS_noIT
+mcutaneous_leishmaniasis_ITFSno <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(tot_IT), 2) + poly(scale(FS_noIT), 2) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_ITFSno); AIC(mcutaneous_leishmaniasis_ITFSno)  # Display summary and AIC for the model
+```
+
+### Double additive models II: overall forest cover and fragmentation
+Build models combining overall forest cover (FS_PLAND) and fragmentation (for_ED and for_PD)
+```{r}
+# Additive model combining FS_PLAND and for_ED
+mcutaneous_leishmaniasis_FSED <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~  poly(scale(FS_PLAND),2)  + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_FSED); AIC(mcutaneous_leishmaniasis_FSED)  # Display summary and AIC for the model
+
+# Additive model combining FS_PLAND and for_PD
+mcutaneous_leishmaniasis_FSPD <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(FS_PLAND),2)  + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y),
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_FSPD); AIC(mcutaneous_leishmaniasis_FSPD)  # Display summary and AIC for the model
+```
+
+### Double additive models III: indigenous territories and fragmentation
+```{r}
+mcutaneous_leishmaniasis_TIED <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(tot_IT),2) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_TIED); AIC(mcutaneous_leishmaniasis_TIED)
+
+mcutaneous_leishmaniasis_TIPD <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(tot_IT),2) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y), 
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_TIPD); AIC(mcutaneous_leishmaniasis_TIPD)
+```
+
+### Tripple additives: indigenous territories + forest cover outside IT + fragmentation
+```{r}
+mcutaneous_leishmaniasis_ITFSED <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(tot_IT),2) +  poly(scale(FS_noIT),2) + scale(for_ED) + offset(IDH) +s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_ITFSED); AIC(mcutaneous_leishmaniasis_ITFSED)
+
+mcutaneous_leishmaniasis_ITFSPD <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(tot_IT),2) + poly(scale(FS_noIT),2) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_ITFSPD); AIC(mcutaneous_leishmaniasis_ITFSPD) 
+```
+
+## Interactive Models I: indigenous territories * forest cover outside IT
+```{r}
+# interativos IT * forest (FS_noIT)
+mcutaneous_leishmaniasis_ITFSno1i <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(tot_IT),2) * scale(FS_noIT) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_ITFSno1i); AIC(mcutaneous_leishmaniasis_ITFSno1i) 
+
+mcutaneous_leishmaniasis_IT1Fsnoi <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ scale(tot_IT) * poly(scale(FS_noIT),2) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_IT1Fsnoi); AIC(mcutaneous_leishmaniasis_IT1Fsnoi) 
+```
+
+### Interactive Models II: overall forest cover * fragmentation
+```{r}
+## interactive landscape structure
+mcutaneous_leishmaniasis_FSEDi <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(FS_PLAND), 2) * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_FSEDi); AIC(mcutaneous_leishmaniasis_FSEDi) 
+
+mcutaneous_leishmaniasis_FSPDi <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(FS_PLAND),2) * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_FSPDi); AIC(mcutaneous_leishmaniasis_FSPDi) 
+```
+
+## Interactive Models III: indigenous territories * fragmentation
+```{r}
+mcutaneous_leishmaniasis_TIEDi <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(tot_IT),2) * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X, Y),
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_TIEDi); AIC(mcutaneous_leishmaniasis_TIEDi) 
+
+mcutaneous_leishmaniasis_TIPDi <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~  poly(scale(tot_IT),2) * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y),
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_TIPDi); AIC(mcutaneous_leishmaniasis_TIPDi) 
+```
+
+### Additive and interative model but keeping interaction with only two varibles: 
+
+#### indigenous territories + ( forest cover outside IT * fragmentation )
+```{r}
+mcutaneous_leishmaniasis_ITiFSED <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(tot_IT),2) + poly(scale(FS_noIT),2) * scale(for_ED) +
+                      offset(IDH) + s(year, bs = "re") + s(X, Y), 
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_ITiFSED); AIC(mcutaneous_leishmaniasis_ITiFSED)
+
+mcutaneous_leishmaniasis_ITiFSPD <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(tot_IT),2) + poly(scale(FS_noIT),2) * scale(for_PD) +  offset(IDH) + s(year, bs = "re") + s(X, Y), 
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_ITiFSPD); AIC(mcutaneous_leishmaniasis_ITiFSPD)
+```
+
+#### forest cover outside IT + ( indigenous territories * fragmentation )
+```{r}
+mcutaneous_leishmaniasis_FSiTIED <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~  poly(scale(FS_noIT),2) + poly(scale(tot_IT),2) * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X, Y), 
+                data = cutaneous_leishmaniasis_incidence_data) 
+# summary(mcutaneous_leishmaniasis_FSiTIED); AIC(mcutaneous_leishmaniasis_FSiTIED)
+
+mcutaneous_leishmaniasis_FSiTIPD <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(FS_noIT),2) + poly(scale(tot_IT),2) * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y), 
+                data = cutaneous_leishmaniasis_incidence_data) 
+# summary(mcutaneous_leishmaniasis_FSiTIPD); AIC(mcutaneous_leishmaniasis_FSiTIPD)
+```
+
+#### fragmentation + ( indigenous territories * forest cover outside IT )
+```{r}
+mcutaneous_leishmaniasis_EDiFSTI1 <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(FS_noIT),2) * scale(tot_IT) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+ summary(mcutaneous_leishmaniasis_EDiFSTI1); AIC(mcutaneous_leishmaniasis_EDiFSTI1)
+
+mcutaneous_leishmaniasis_EDiFS1TI <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ scale(FS_noIT) * poly(scale(tot_IT),2) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data) 
+ #summary(mcutaneous_leishmaniasis_EDiFS1TI); AIC(mcutaneous_leishmaniasis_EDiFS1TI)
+
+mcutaneous_leishmaniasis_PDiFSTI1 <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ poly(scale(FS_noIT),2) * scale(tot_IT) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data)
+# summary(mcutaneous_leishmaniasis_PDiFSTI1); AIC(mcutaneous_leishmaniasis_PDiFSTI1)
+
+mcutaneous_leishmaniasis_PDiFS1TI <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ scale(FS_noIT) * poly(scale(tot_IT),2) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+                data = cutaneous_leishmaniasis_incidence_data) 
+# summary(mcutaneous_leishmaniasis_PDiFS1TI); AIC(mcutaneous_leishmaniasis_PDiFS1TI)
+```
+
+
+# Model Selection Using AIC Comparison
+Perform model selection by comparing all models based on AIC using AICtab function
+```{r}
+(mod.sel <- AICtab(
+              # Absence of effect (aka Baseline Model, 'null')
+              mcutaneous_leishmaniasis0,
+              # Single-Predictor Models
+              mcutaneous_leishmaniasis_FS2,
+              mcutaneous_leishmaniasis_IT2,
+              mcutaneous_leishmaniasis_ED,
+              mcutaneous_leishmaniasis_PD,
+              # Double additive Models I: indigenous territories and forest cover outside IT
+              mcutaneous_leishmaniasis_ITFSno,
+              # Double additive models II: overall forest cover and fragmentation
+              mcutaneous_leishmaniasis_FSED,
+              mcutaneous_leishmaniasis_FSPD,
+              # Double additive models III: indigenous territories and fragmentation
+              mcutaneous_leishmaniasis_TIED,
+              mcutaneous_leishmaniasis_TIPD,
+              # Tripple additives: indigenous territories + forest cover outside IT + fragmentation
+              mcutaneous_leishmaniasis_ITFSED,
+              mcutaneous_leishmaniasis_ITFSPD,
+              ## Interactive Models I: indigenous territories * forest cover outside IT
+              mcutaneous_leishmaniasis_ITFSno1i,
+              mcutaneous_leishmaniasis_IT1Fsnoi,
+              # Interactive Models II: overall forest cover * fragmentation
+              mcutaneous_leishmaniasis_FSEDi,
+              mcutaneous_leishmaniasis_FSPDi,
+              # Interactive Models III: indigenous territories * fragmentation
+              mcutaneous_leishmaniasis_TIEDi,
+              mcutaneous_leishmaniasis_TIPDi,
+              # Additive and interative model but keeping interaction with only two varibles: 
+              # indigenous territories + ( forest cover outside IT * fragmentation )
+              mcutaneous_leishmaniasis_ITiFSED,
+              mcutaneous_leishmaniasis_ITiFSPD,
+              # forest cover outside IT + ( indigenous territories * fragmentation )
+              mcutaneous_leishmaniasis_FSiTIED,
+              mcutaneous_leishmaniasis_FSiTIPD,
+              # fragmentation + ( indigenous territories * forest cover outside IT )
+              mcutaneous_leishmaniasis_EDiFSTI1,
+              mcutaneous_leishmaniasis_EDiFS1TI,
+              mcutaneous_leishmaniasis_PDiFSTI1,
+              mcutaneous_leishmaniasis_PDiFS1TI,
+       base = TRUE, weights = TRUE))  # Include null model and calculate weights
+```
+# Top selected model output
+
+Summarize the selected model to examine the fitted results
+```{r}
+summary(mcutaneous_leishmaniasis_ITiFSED)
+```
+
+Tidy up the model summary to get a clean output of the parametric terms
+```{r}
+tidy(mcutaneous_leishmaniasis_ITiFSED, parametric = TRUE)  #
+```
+
+# Model Diagnostics
+
+```{r}
+resid <- simulateResiduals(mcutaneous_leishmaniasis_ITiFSED)
+plot(resid)
+```
+
+```{r}
+testResiduals(resid, plot = TRUE)
+```
+
+Look at selected predictors:
+```{r}
+plotResiduals(resid, cutaneous_leishmaniasis_incidence_data$FS_noIT); plotResiduals(resid, cutaneous_leishmaniasis_incidence_data$tot_IT); plotResiduals(resid, cutaneous_leishmaniasis_incidence_data$for_ED)
+```
+
+# Prediction plot
+
+We originally use orthogonal polynomials (i.e. 'poly(predictor_variable, 2)') for model selection due to their statistical advantages, which often leads to more reliable statistical inference. So model selection was based on orthogonal polynomials (`poly(x, 2)`) for robustness, but for practical visualization purpose, we use regular quadratic terms (`I(x^2)`) for clarity. The overall predicted trends (i.e., the shapes of the response curves) produced by a model using orthogonal polynomials (`poly(x, 2)`) and regular quadratic terms (`I(x^2)`) are generally comparable. Both models capture the quadratic relationships in the data.
+
+```{r}
+mcutaneous_leishmaniasis_ITiFSED_quad <- gam(log10(cutaneous_leishmaniasis.incidence + 1) ~ 
+                                               scale(tot_IT) + I(scale(tot_IT)^2) +
+                                     scale(FS_noIT) * scale(for_ED) + I(scale(FS_noIT)^2) * scale(for_ED) + 
+                                    offset(IDH) + s(year, bs = "re") + s(X,Y), data= cutaneous_leishmaniasis_incidence_data)
+```
+
+Plot predictions with new_data:
+```{r, fig.width= 8, fig.height= 4}
+new_data <- expand.grid(
+  tot_IT = c(15, 45, 75),  # Three levels of Forest Cover Outside IT
+  for_ED = c(10, 25, 50),  # Three fixed levels of Edge Density
+  FS_noIT = seq(min(cutaneous_leishmaniasis_incidence_data$FS_noIT, na.rm = TRUE), max(cutaneous_leishmaniasis_incidence_data$FS_noIT, na.rm = TRUE), length.out = 100),
+  IDH = median(cutaneous_leishmaniasis_incidence_data$IDH, na.rm = TRUE), 
+  year = median(cutaneous_leishmaniasis_incidence_data$year, na.rm = TRUE),
+  X = median(cutaneous_leishmaniasis_incidence_data$X, na.rm = TRUE),
+  Y = median(cutaneous_leishmaniasis_incidence_data$Y, na.rm = TRUE)
+)
+
+# Adjust the filtering based on the specific rules for tot_IT and FS_noIT
+new_data <- new_data %>% 
+  filter((tot_IT == 15 & FS_noIT <= 85) |
+         (tot_IT == 45 & FS_noIT <= 55) |
+         (tot_IT == 75 & FS_noIT <= 25))
+
+predictions <- predict(mcutaneous_leishmaniasis_ITiFSED_quad, newdata = new_data, type = "response", se.fit = TRUE)
+
+# back-transforming predictions
+new_data$predicted <- 10^predictions$fit - 1
+new_data$conf.low <- 10^(predictions$fit - 1.96 * predictions$se.fit) - 1  # Limite inferior IC 95%
+new_data$conf.high <- 10^(predictions$fit + 1.96 * predictions$se.fit) - 1  # Limite superior IC 95%
+
+(cutaneous <- ggplot(new_data, aes(x = FS_noIT, y = predicted, 
+                                   linetype = as.factor(for_ED), color = as.factor(for_ED))) +
+  geom_line(linewidth = 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = as.factor(for_ED)), 
+              linetype= 0, alpha = 0.2) +
+  labs(
+    x = "Forest cover outside IT (%)",
+    y = "Cutaneous leishmaniasis\n diseases' incidence",  # Breaking the y-axis title into two lines
+    color = "Edge density",
+    linetype = "Edge density",
+    fill = "Edge density"
+  ) +
+  theme(
+    legend.position = "top",  # Keeping legend on top
+    text = element_text(size = 16),  # Increase overall font size
+    axis.title.y = element_text(size = 16, lineheight = 1.1),  # Adjust font size and line spacing for y-axis
+    axis.title.x = element_text(size = 16)  # Adjust font size for x-axis
+  ) +
+   scale_color_manual(values = c("#949E4F", "#D4B35A", "#A9822B")) + 
+  scale_fill_manual(values = c("#949E4F", "#D4B35A", "#A9822B")) +
+    scale_linetype_manual(values = c("solid", "longdash", "dotted")) +
+  facet_wrap(~ tot_IT, labeller = as_labeller(c("15" = "Low IT (15%)", 
+                                                "45" = "Median IT (45%)", 
+                                                "75" = "High IT (75%)"))))
+
+
+ggsave(here("outputs", "figures", "cutaneous_leishmaniasis_topmodel.png"), width= 9, height= 4)
+```
+

@@ -1,0 +1,278 @@
+---
+title: "Modelling Indigenous forests and landscape structure effects on Visceral leishmaniasis incidence"
+author: "Julia Barreto, Filipa Palmeirin & Paula Prist"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    thumbnails: false
+    lightbox: true
+    gallery: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = F, message = F, warning = F, error= F)
+library(here)
+library(tidyr)
+library(dplyr)
+library(skimr)
+library(mgcv)
+library(bbmle)
+library(DHARMa)
+library(broom)
+library(cowplot)
+theme_set(theme_cowplot())
+library(ggplot2)
+```
+
+
+# Data Loading and Preprocessing
+
+Load temporal health data and coordinates, merge and clean the datasets
+
+```{r}
+incidence_data <- read.csv(here("data", "incidence_data.csv"), header = T)
+
+visceral_leishmaniasis.occurrence_data <- incidence_data %>%
+  dplyr::select(country, COD, year, IDH, X, Y, visceral_leishmaniasis.occurrence, for_PD, 
+                for_ED, for_AI, FS_PLAND, tot_IT, NOTackn_IT, acknlgd_IT, 
+                FS_noIT, pm25_SUM) %>%
+  # Removing NAs from the dataset
+  drop_na(visceral_leishmaniasis.occurrence)
+```
+
+# Data Overview and Distributions
+
+## Summary statistics and structure for dataset
+```{r}
+(sk <- skim(visceral_leishmaniasis.occurrence_data))
+```
+
+
+# Modelling
+
+We build GAM spatial models contain random effects for year and geographical coordinates. For modelling the presence/absence of visceral_leishmaniasis disease we use the binomial family of distribution and log link function.
+
+## Absence of effect (aka Baseline Model, 'null')
+Fit a model of absence of effect with only an intercept and random effects for year and spatial coordinates. This model serves as a baseline to compare against models with predictors. 
+
+```{r}
+mvisceral_leishmaniasis.occurrence0 <- gam(visceral_leishmaniasis.occurrence ~ 1 + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+              family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data) 
+# summary(mvisceral_leishmaniasis.occurrence0); AIC(mvisceral_leishmaniasis.occurrence0)
+```
+
+## Single-Predictor Models
+
+Fit models with single predictors for (1) overall forest cover (FS_PLAND), (2) indigenous territory (tot_IT), (3) forest cover outside indigenous territory (FS_noIT), (4) patch density (PD), (5) edge density (ED).
+Here, we first tested overall forest cover, IT and forest cover outside IT with both linear and polynomial (quadratic) terms to determine which has the best fit.
+
+```{r}
+# Model for forest cover within the entire COD/municipality (FS_PLAND)
+# Linear model for FS_PLAND 
+mvisceral_leishmaniasis.occurrence_FS <- gam(visceral_leishmaniasis.occurrence ~ scale(FS_PLAND) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_FS); AIC(mvisceral_leishmaniasis.occurrence_FS) # Display summary and AIC for the model 
+
+
+# Model for Indigenous Territories (tot_IT) 
+# Linear model for tot_IT 
+mvisceral_leishmaniasis.occurrence_IT <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+summary(mvisceral_leishmaniasis.occurrence_IT); AIC(mvisceral_leishmaniasis.occurrence_IT) # Display summary and AIC for the polynomial model
+
+
+# Model for forest cover outside Indigenous Territories (FS_noIT) 
+#Linear model for FS_noIT 1100.173
+mvisceral_leishmaniasis.occurrence_FSnoIT <- gam(visceral_leishmaniasis.occurrence ~ scale(FS_noIT) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+summary(mvisceral_leishmaniasis.occurrence_FSnoIT); AIC(mvisceral_leishmaniasis.occurrence_FSnoIT)
+
+# Model for forest edge density (for_ED)
+mvisceral_leishmaniasis.occurrence_ED <- gam(visceral_leishmaniasis.occurrence ~ scale(for_ED) +offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+#summary(mvisceral_leishmaniasis.occurrence_ED); AIC(mvisceral_leishmaniasis.occurrence_ED)  # Display summary and AIC for for_ED model
+
+# Model for patch density (for_PD)
+mvisceral_leishmaniasis.occurrence_PD <- gam(visceral_leishmaniasis.occurrence ~ scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+#summary(mvisceral_leishmaniasis.occurrence_PD); AIC(mvisceral_leishmaniasis.occurrence_PD)  # Display summary and AIC for for_PD model
+```
+
+## Double additive Models I: indigenous territories and forest cover outside IT
+Build additive models combining Indigenous Territories (tot_IT) and forest cover outside Indigenous Territories (FS_noIT)
+```{r}
+# Additive model with polynomial terms for tot_IT and FS_noIT
+mvisceral_leishmaniasis.occurrence_ITFSno <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT) + scale(FS_noIT) + offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_ITFSno); AIC(mvisceral_leishmaniasis.occurrence_ITFSno)  # Display summary and AIC for the model
+```
+
+### Double additive models II: overall forest cover and fragmentation
+Build models combining overall forest cover (FS_PLAND) and fragmentation (for_ED and for_PD)
+```{r}
+# Additive model combining FS_PLAND and for_ED
+mvisceral_leishmaniasis.occurrence_FSED <- gam(visceral_leishmaniasis.occurrence ~  scale(FS_PLAND) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_FSED); AIC(mvisceral_leishmaniasis.occurrence_FSED)  # Display summary and AIC for the model
+
+# Additive model combining FS_PLAND and for_PD
+mvisceral_leishmaniasis.occurrence_FSPD <- gam(visceral_leishmaniasis.occurrence ~ scale(FS_PLAND) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_FSPD); AIC(mvisceral_leishmaniasis.occurrence_FSPD)  # Display summary and AIC for the model
+```
+
+### Double additive models III: indigenous territories and fragmentation
+```{r}
+mvisceral_leishmaniasis.occurrence_TIED <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_TIED); AIC(mvisceral_leishmaniasis.occurrence_TIED)
+
+mvisceral_leishmaniasis.occurrence_TIPD <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_TIPD); AIC(mvisceral_leishmaniasis.occurrence_TIPD)
+```
+
+### Tripple additives: indigenous territories + forest cover outside IT + fragmentation
+```{r}
+mvisceral_leishmaniasis.occurrence_ITFSED <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT)  +  scale(FS_noIT) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_ITFSED); AIC(mvisceral_leishmaniasis.occurrence_ITFSED)
+
+mvisceral_leishmaniasis.occurrence_ITFSPD <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT)  +  scale(FS_noIT) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_ITFSPD); AIC(mvisceral_leishmaniasis.occurrence_ITFSPD) 
+```
+
+## Interactive Models I: indigenous territories * forest cover outside IT
+```{r}
+# interativos IT * forest (FS_noIT)
+mvisceral_leishmaniasis.occurrence_ITFSno1i <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT) * scale(FS_noIT) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+
+#mvisceral_leishmaniasis.occurrence_IT1FSnoi <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT) * poly(scale(FS_noIT),2) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = #visceral_leishmaniasis.occurrence_data)  # TO DELETE
+# summary(mvisceral_leishmaniasis.occurrence_IT1FSnoi); AIC(mvisceral_leishmaniasis.occurrence_IT1FSnoi) 
+```
+
+### Interactive Models II: overall forest cover * fragmentation
+```{r}
+## interactive landscape structure
+mvisceral_leishmaniasis.occurrence_FSEDi <- gam(visceral_leishmaniasis.occurrence ~ scale(FS_PLAND) * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_FSEDi); AIC(mvisceral_leishmaniasis.occurrence_FSEDi) 
+
+mvisceral_leishmaniasis.occurrence_FSPDi <- gam(visceral_leishmaniasis.occurrence ~ scale(FS_PLAND) * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_FSPDi); AIC(mvisceral_leishmaniasis.occurrence_FSPDi) 
+```
+
+## Interactive Models III: indigenous territories * fragmentation
+```{r}
+mvisceral_leishmaniasis.occurrence_TIEDi <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT) * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_TIEDi); AIC(mvisceral_leishmaniasis.occurrence_TIEDi) 
+
+mvisceral_leishmaniasis.occurrence_TIPDi <- gam(visceral_leishmaniasis.occurrence ~  scale(tot_IT) * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y),  family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_TIPDi); AIC(mvisceral_leishmaniasis.occurrence_TIPDi) 
+```
+
+### Additive and interative model but keeping interaction with only two varibles: 
+
+#### indigenous territories + ( forest cover outside IT * fragmentation )
+```{r}
+mvisceral_leishmaniasis.occurrence_ITiFSED <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT) + scale(FS_noIT) * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_ITiFSED); AIC(mvisceral_leishmaniasis.occurrence_ITiFSED)
+
+mvisceral_leishmaniasis.occurrence_ITiFSPD <- gam(visceral_leishmaniasis.occurrence ~ scale(tot_IT) + scale(FS_noIT) * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_ITiFSPD); AIC(mvisceral_leishmaniasis.occurrence_ITiFSPD)
+```
+
+#### forest cover outside IT + ( indigenous territories * fragmentation )
+```{r}
+mvisceral_leishmaniasis.occurrence_FSiTIED <- gam(visceral_leishmaniasis.occurrence ~  scale(FS_noIT) + scale(tot_IT) * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mzoonotic_FSiTIED); AIC(mvisceral_leishmaniasis.occurrence_FSiTIED)
+
+mvisceral_leishmaniasis.occurrence_FSiTIPD <- gam(visceral_leishmaniasis.occurrence ~ scale(FS_noIT) + scale(tot_IT) * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_FSiTIPD); AIC(mvisceral_leishmaniasis.occurrence_FSiTIPD)
+```
+
+#### fragmentation + ( indigenous territories * forest cover outside IT )
+```{r}
+#mvisceral_leishmaniasis.occurrence_EDiFSTI1 <- gam(visceral_leishmaniasis.occurrence ~ poly(scale(FS_noIT),2) * scale(tot_IT) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+#summary(mvisceral_leishmaniasis.occurrence_EDiFSTI1); AIC(mvisceral_leishmaniasis.occurrence_EDiFSTI1) TO DELETE
+
+mvisceral_leishmaniasis.occurrence_EDiFS1TI <- gam(visceral_leishmaniasis.occurrence ~ scale(FS_noIT) * scale(tot_IT) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+#summary(mvisceral_leishmaniasis.occurrence_EDiFS1TI); AIC(mvisceral_leishmaniasis.occurrence_EDiFS1TI) 
+
+#mvisceral_leishmaniasis.occurrence_PDiFSTI1 <- gam(visceral_leishmaniasis.occurrence ~ poly(scale(FS_noIT),2) * scale(tot_IT) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data) 
+# summary(mvisceral_leishmaniasis.occurrence_PDiFSTI1); AIC(mvisceral_leishmaniasis.occurrence_PDiFSTI1) TO DELETE
+
+mvisceral_leishmaniasis.occurrence_PDiFS1TI <- gam(visceral_leishmaniasis.occurrence ~ scale(FS_noIT) * scale(tot_IT) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = visceral_leishmaniasis.occurrence_data)
+# summary(mvisceral_leishmaniasis.occurrence_PDiFS1TI); AIC(mvisceral_leishmaniasis.occurrence_PDiFS1TI)
+```
+
+# Model Selection Using AIC Comparison
+Perform model selection by comparing all models based on AIC using AICtab function
+```{r}
+(mod.sel <- AICtab(
+              # Absence of effect (aka Baseline Model, 'null')
+              mvisceral_leishmaniasis.occurrence0,
+              # Single-Predictor Models
+             mvisceral_leishmaniasis.occurrence_FS,
+             mvisceral_leishmaniasis.occurrence_IT,
+             mvisceral_leishmaniasis.occurrence_FSnoIT,
+              mvisceral_leishmaniasis.occurrence_ED,
+              mvisceral_leishmaniasis.occurrence_PD,
+              # Double additive Models I: indigenous territories and forest cover outside IT
+              mvisceral_leishmaniasis.occurrence_ITFSno,
+              # Double additive models II: overall forest cover and fragmentation
+              mvisceral_leishmaniasis.occurrence_FSED,
+              mvisceral_leishmaniasis.occurrence_FSPD,
+              # Double additive models III: indigenous territories and fragmentation
+              mvisceral_leishmaniasis.occurrence_TIED,
+              mvisceral_leishmaniasis.occurrence_TIPD,
+              # Tripple additives: indigenous territories + forest cover outside IT + fragmentation
+              mvisceral_leishmaniasis.occurrence_ITFSED,
+              mvisceral_leishmaniasis.occurrence_ITFSPD,
+              ## Interactive Models I: indigenous territories * forest cover outside IT
+              mvisceral_leishmaniasis.occurrence_ITFSno1i,
+              # mvisceral_leishmaniasis.occurrence_IT1FSnoi, TO DELETE
+              # Interactive Models II: overall forest cover * fragmentation
+              mvisceral_leishmaniasis.occurrence_FSEDi,
+              mvisceral_leishmaniasis.occurrence_FSPDi,
+              # Interactive Models III: indigenous territories * fragmentation
+              mvisceral_leishmaniasis.occurrence_TIEDi,
+              mvisceral_leishmaniasis.occurrence_TIPDi,
+              # Additive and interative model but keeping interaction with only two varibles: 
+              # indigenous territories + ( forest cover outside IT * fragmentation )
+              mvisceral_leishmaniasis.occurrence_ITiFSED,
+              mvisceral_leishmaniasis.occurrence_ITiFSPD,
+              # forest cover outside IT + ( indigenous territories * fragmentation )
+              mvisceral_leishmaniasis.occurrence_FSiTIED,
+              mvisceral_leishmaniasis.occurrence_FSiTIPD,
+              # fragmentation + ( indigenous territories * forest cover outside IT )
+              #mvisceral_leishmaniasis.occurrence_EDiFSTI1, TO DELETE
+              mvisceral_leishmaniasis.occurrence_EDiFS1TI, 
+              #mvisceral_leishmaniasis.occurrence_PDiFSTI1, TO DELETE
+              mvisceral_leishmaniasis.occurrence_PDiFS1TI,
+       base = TRUE, weights = TRUE))  # Include null model and calculate weights
+```
+# Top selected model output
+
+Summarize the selected model to examine the fitted results
+```{r}
+summary(mvisceral_leishmaniasis.occurrence_FSPD)
+summary(mvisceral_leishmaniasis.occurrence_FSED)
+summary(mvisceral_leishmaniasis.occurrence_IT)
+```
+
+Tidy up the model summary to get a clean output of the parametric terms
+```{r}
+tidy(mvisceral_leishmaniasis.occurrence_FSPD, parametric = TRUE)  #
+```
+
+# Model Diagnostics
+
+## Dispersion
+
+Test for overdispersion in the residuals using DHARMa's testDispersion()
+```{r}
+DHARMa::testDispersion(mvisceral_leishmaniasis.occurrence_FSPD)
+``` 
+
+## Test and plot residuals
+
+Generate residual diagnostic plots to visually inspect residuals and validate model assumptions. Creates diagnostic plots such as residual vs. fitted plots, QQ plots, and others for more in-depth inspection.
+```{r}
+testResiduals(mvisceral_leishmaniasis.occurrence_FSPD, plot = TRUE)
+```
+
+
+Rarer diseases were not plotted in study.

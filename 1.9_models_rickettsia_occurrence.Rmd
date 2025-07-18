@@ -1,0 +1,274 @@
+---
+title: "Obj 2: Modelling Indigenous forests and landscape structure effects on Rickettsia incidence"
+author: "Julia Barreto, Filipa Palmeirin & Paula Prist"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    thumbnails: false
+    lightbox: true
+    gallery: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = F, message = F, warning = F, error= F)
+library(here)
+library(tidyr)
+library(dplyr)
+library(skimr)
+library(mgcv)
+library(bbmle)
+library(DHARMa)
+library(broom)
+library(cowplot)
+theme_set(theme_cowplot())
+library(ggplot2)
+```
+
+
+# Data Loading and Preprocessing
+
+Load temporal health data and coordinates, merge and clean the datasets
+
+```{r}
+incidence_data <- read.csv(here("data", "incidence_data.csv"), header = T)
+
+rickettsia.occurrence_data <- incidence_data %>%
+  dplyr::select(country, COD, year, IDH, X, Y, rickettsia.occurrence, for_PD, 
+                for_ED, for_AI, FS_PLAND, tot_IT, NOTackn_IT, acknlgd_IT, 
+                FS_noIT, pm25_SUM) %>%
+  # Removing NAs from the dataset
+  drop_na(rickettsia.occurrence)
+```
+
+# Data Overview and Distributions
+
+## Summary statistics and structure for dataset
+```{r}
+(sk <- skim(rickettsia.occurrence_data))
+```
+
+
+# Modelling
+
+We build GAM spatial models contain random effects for year and geographical coordinates. For modelling the presence/absence of rickettsia disease we use the binomial family of distribution and log link function.
+
+## Absence of effect (aka Baseline Model, 'null')
+Fit a model of absence of effect with only an intercept and random effects for year and spatial coordinates. This model serves as a baseline to compare against models with predictors. 
+
+```{r}
+mrickettsia.occurrence0 <- gam(rickettsia.occurrence ~ 1 + offset(IDH) + s(year, bs = "re") + s(X, Y),  
+              family= binomial(link = "logit"), data = rickettsia.occurrence_data) 
+# summary(mrickettsia.occurrence0); AIC(mrickettsia.occurrence0)
+```
+
+## Single-Predictor Models
+
+Fit models with single predictors for (1) overall forest cover (FS_PLAND), (2) indigenous territory (tot_IT), (3) forest cover outside indigenous territory (FS_noIT), (4) patch density (PD), (5) edge density (ED).
+Here, we first tested overall forest cover, IT and forest cover outside IT with both linear and polynomial (quadratic) terms to determine which has the best fit.
+
+```{r}
+# Model for forest cover within the entire COD/municipality (FS_PLAND)
+
+# Polynomial model (second degree) for FS_PLAND
+mrickettsia.occurrence_FS2 <- gam(rickettsia.occurrence ~ poly(scale(FS_PLAND), 2) + offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = rickettsia.occurrence_data)
+summary(mrickettsia.occurrence_FS2); AIC(mrickettsia.occurrence_FS2) 
+
+# Model for Indigenous Territories (tot_IT) 
+
+# Polynomial model (second degree) for tot_IT 
+mrickettsia.occurrence_IT2 <- gam(rickettsia.occurrence ~ poly(scale(tot_IT), 2) + offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = rickettsia.occurrence_data)
+summary(mrickettsia.occurrence_IT2); AIC(mrickettsia.occurrence_IT2)
+
+# Model for forest cover outside Indigenous Territories (FS_noIT)
+#Linear model for FS_noIT
+mrickettsia.occurrence_FSnoIT <- gam(rickettsia.occurrence ~ scale(FS_noIT) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+summary(mrickettsia.occurrence_FSnoIT); AIC(mrickettsia.occurrence_FSnoIT)
+
+# Model for forest edge density (for_ED)
+mrickettsia.occurrence_ED <- gam(rickettsia.occurrence ~ scale(for_ED) +offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = rickettsia.occurrence_data)
+#summary(mrickettsia.occurrence_ED); AIC(mrickettsia.occurrence_ED)  # Display summary and AIC for for_ED model
+
+# Model for patch density (for_PD)
+mrickettsia.occurrence_PD <- gam(rickettsia.occurrence ~ scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = rickettsia.occurrence_data)
+#summary(mrickettsia.occurrence_PD); AIC(mrickettsia.occurrence_PD)  # Display summary and AIC for for_PD model
+```
+
+## Double additive Models I: indigenous territories and forest cover outside IT
+Build additive models combining Indigenous Territories (tot_IT) and forest cover outside Indigenous Territories (FS_noIT)
+```{r}
+# Additive model with polynomial terms for tot_IT and FS_noIT
+mrickettsia.occurrence_ITFSno <- gam(rickettsia.occurrence ~ poly(scale(tot_IT), 2) + scale(FS_noIT) + offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_ITFSno); AIC(mrickettsia.occurrence_ITFSno)  # Display summary and AIC for the model
+```
+
+### Double additive models II: overall forest cover and fragmentation
+Build models combining overall forest cover (FS_PLAND) and fragmentation (for_ED and for_PD)
+```{r}
+# Additive model combining FS_PLAND and for_ED
+mrickettsia.occurrence_FSED <- gam(rickettsia.occurrence ~  poly(scale(FS_PLAND), 2) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_FSED); AIC(mrickettsia.occurrence_FSED)  # Display summary and AIC for the model
+
+# Additive model combining FS_PLAND and for_PD
+mrickettsia.occurrence_FSPD <- gam(rickettsia.occurrence ~ poly(scale(FS_PLAND), 2) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X, Y), family = binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_FSPD); AIC(mrickettsia.occurrence_FSPD)  # Display summary and AIC for the model
+```
+
+### Double additive models III: indigenous territories and fragmentation
+```{r}
+mrickettsia.occurrence_TIED <- gam(rickettsia.occurrence ~ poly(scale(tot_IT), 2) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_TIED); AIC(mrickettsia.occurrence_TIED)
+
+mrickettsia.occurrence_TIPD <- gam(rickettsia.occurrence ~ poly(scale(tot_IT), 2)  + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_TIPD); AIC(mrickettsia.occurrence_TIPD)
+```
+
+### Tripple additives: indigenous territories + forest cover outside IT + fragmentation
+```{r}
+mrickettsia.occurrence_ITFSED <- gam(rickettsia.occurrence ~ poly(scale(tot_IT), 2)  +  scale(FS_noIT) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_ITFSED); AIC(mrickettsia.occurrence_ITFSED)
+
+mrickettsia.occurrence_ITFSPD <- gam(rickettsia.occurrence ~ poly(scale(tot_IT), 2)  +  scale(FS_noIT) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_ITFSPD); AIC(mrickettsia.occurrence_ITFSPD) 
+```
+
+## Interactive Models I: indigenous territories * forest cover outside IT
+```{r}
+# interativos IT * forest (FS_noIT)
+mrickettsia.occurrence_ITFSno1i <- gam(rickettsia.occurrence ~ poly(scale(tot_IT),2) * scale(FS_noIT) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+
+#mrickettsia.occurrence_IT1FSnoi <- gam(rickettsia.occurrence ~ scale(tot_IT) * poly(scale(FS_noIT),2) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = #rickettsia.occurrence_data)  # TO DELETE
+# summary(mrickettsia.occurrence_IT1FSnoi); AIC(mrickettsia.occurrence_IT1FSnoi) 
+```
+
+### Interactive Models II: overall forest cover * fragmentation
+```{r}
+## interactive landscape structure
+mrickettsia.occurrence_FSEDi <- gam(rickettsia.occurrence ~ poly(scale(FS_PLAND),2) * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_FSEDi); AIC(mrickettsia.occurrence_FSEDi) 
+
+mrickettsia.occurrence_FSPDi <- gam(rickettsia.occurrence ~ poly(scale(FS_PLAND),2) * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_FSPDi); AIC(mrickettsia.occurrence_FSPDi) 
+```
+
+## Interactive Models III: indigenous territories * fragmentation
+```{r}
+mrickettsia.occurrence_TIEDi <- gam(rickettsia.occurrence ~ poly(scale(tot_IT),2) * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_TIEDi); AIC(mrickettsia.occurrence_TIEDi) 
+
+mrickettsia.occurrence_TIPDi <- gam(rickettsia.occurrence ~  poly(scale(tot_IT),2) * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y),  family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_TIPDi); AIC(mrickettsia.occurrence_TIPDi) 
+```
+
+### Additive and interative model but keeping interaction with only two varibles: 
+
+#### indigenous territories + ( forest cover outside IT * fragmentation )
+```{r}
+mrickettsia.occurrence_ITiFSED <- gam(rickettsia.occurrence ~ poly(scale(tot_IT),2) + scale(FS_noIT) * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_ITiFSED); AIC(mrickettsia.occurrence_ITiFSED)
+
+mrickettsia.occurrence_ITiFSPD <- gam(rickettsia.occurrence ~ poly(scale(tot_IT),2) + scale(FS_noIT) * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_ITiFSPD); AIC(mrickettsia.occurrence_ITiFSPD)
+```
+
+#### forest cover outside IT + ( indigenous territories * fragmentation )
+```{r}
+mrickettsia.occurrence_FSiTIED <- gam(rickettsia.occurrence ~  scale(FS_noIT) + poly(scale(tot_IT),2)  * scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mzoonotic_FSiTIED); AIC(mrickettsia.occurrence_FSiTIED)
+
+mrickettsia.occurrence_FSiTIPD <- gam(rickettsia.occurrence ~ scale(FS_noIT) + poly(scale(tot_IT),2)  * scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_FSiTIPD); AIC(mrickettsia.occurrence_FSiTIPD)
+```
+
+#### fragmentation + ( indigenous territories * forest cover outside IT )
+```{r}
+#mrickettsia.occurrence_EDiFSTI1 <- gam(rickettsia.occurrence ~ poly(scale(FS_noIT),2) * scale(tot_IT) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+#summary(mrickettsia.occurrence_EDiFSTI1); AIC(mrickettsia.occurrence_EDiFSTI1) TO DELETE
+
+mrickettsia.occurrence_EDiFS1TI <- gam(rickettsia.occurrence ~ scale(FS_noIT) * poly(scale(tot_IT),2) + scale(for_ED) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+#summary(mrickettsia.occurrence_EDiFS1TI); AIC(mrickettsia.occurrence_EDiFS1TI) 
+
+#mrickettsia.occurrence_PDiFSTI1 <- gam(rickettsia.occurrence ~ poly(scale(FS_noIT),2) * scale(tot_IT) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data) 
+# summary(mrickettsia.occurrence_PDiFSTI1); AIC(mrickettsia.occurrence_PDiFSTI1) TO DELETE
+
+mrickettsia.occurrence_PDiFS1TI <- gam(rickettsia.occurrence ~ scale(FS_noIT) * poly(scale(tot_IT),2) + scale(for_PD) + offset(IDH) + s(year, bs = "re") + s(X,Y), family= binomial(link = "logit"), data = rickettsia.occurrence_data)
+# summary(mrickettsia.occurrence_PDiFS1TI); AIC(mrickettsia.occurrence_PDiFS1TI)
+```
+
+# Model Selection Using AIC Comparison
+Perform model selection by comparing all models based on AIC using AICtab function
+```{r}
+(mod.sel <- AICtab(
+              # Absence of effect (aka Baseline Model, 'null')
+              mrickettsia.occurrence0,
+              # Single-Predictor Models
+              mrickettsia.occurrence_FS2,
+              mrickettsia.occurrence_IT2,
+              mrickettsia.occurrence_FSnoIT,
+              mrickettsia.occurrence_ED,
+              mrickettsia.occurrence_PD,
+              # Double additive Models I: indigenous territories and forest cover outside IT
+              mrickettsia.occurrence_ITFSno,
+              # Double additive models II: overall forest cover and fragmentation
+              mrickettsia.occurrence_FSED,
+              mrickettsia.occurrence_FSPD,
+              # Double additive models III: indigenous territories and fragmentation
+              mrickettsia.occurrence_TIED,
+              mrickettsia.occurrence_TIPD,
+              # Tripple additives: indigenous territories + forest cover outside IT + fragmentation
+              mrickettsia.occurrence_ITFSED,
+              mrickettsia.occurrence_ITFSPD,
+              ## Interactive Models I: indigenous territories * forest cover outside IT
+              mrickettsia.occurrence_ITFSno1i,
+              # Interactive Models II: overall forest cover * fragmentation
+              mrickettsia.occurrence_FSEDi,
+              mrickettsia.occurrence_FSPDi,
+              # Interactive Models III: indigenous territories * fragmentation
+              mrickettsia.occurrence_TIEDi,
+              mrickettsia.occurrence_TIPDi,
+              # Additive and interative model but keeping interaction with only two varibles: 
+              # indigenous territories + ( forest cover outside IT * fragmentation )
+              mrickettsia.occurrence_ITiFSED,
+              mrickettsia.occurrence_ITiFSPD,
+              # forest cover outside IT + ( indigenous territories * fragmentation )
+              mrickettsia.occurrence_FSiTIED,
+              mrickettsia.occurrence_FSiTIPD,
+              # fragmentation + ( indigenous territories * forest cover outside IT )
+              mrickettsia.occurrence_EDiFS1TI, 
+              mrickettsia.occurrence_PDiFS1TI,
+       base = TRUE, weights = TRUE))  # Include null model and calculate weights
+```
+# Top selected model output
+
+Summarize the selected model to examine the fitted results
+```{r}
+summary(mrickettsia.occurrence_FSPD)
+summary(mrickettsia.occurrence_FSED)
+summary(mrickettsia.occurrence_IT2)
+```
+
+Tidy up the model summary to get a clean output of the parametric terms
+```{r}
+tidy(mrickettsia.occurrence_FSPD, parametric = TRUE)  #
+```
+
+# Model Diagnostics
+
+## Dispersion
+
+Test for overdispersion in the residuals using DHARMa's testDispersion()
+```{r}
+DHARMa::testDispersion(mrickettsia.occurrence_FSPD)
+``` 
+
+## Test and plot residuals
+
+Generate residual diagnostic plots to visually inspect residuals and validate model assumptions. Creates diagnostic plots such as residual vs. fitted plots, QQ plots, and others for more in-depth inspection.
+```{r}
+testResiduals(mrickettsia.occurrence_FSPD, plot = TRUE)
+```
+
+Rarer diseases were not plotted in study

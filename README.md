@@ -13,64 +13,151 @@ editor_options:
     wrap: 72
 ---
 
-# Description:
-This repository contains all data and code necessary to reproduce the analyses presented in the paper, "Indigenous territories are important for safeguarding human health in the Amazon Region." The study explores the relationship between indigenous territories (ITs) and health outcomes across the Pan-Amazonian region, focusing on fire-related and zoonotic diseases. The repository includes comprehensive datasets, R scripts, and model outputs, covering the full research workflow from data management to statistical analysis and model validation.
+# Repository Overview
 
-# Contents:
+This repository contains all data and code necessary to reproduce the
+analyses presented in the paper, "Indigenous Territories can safeguard
+human health depending on the landscape structure and legal status".
+The study explores the relationship between indigenous territories (ITs) and 
+health outcomes across the Pan-Amazonian region, focusing on fire-related and
+zoonotic diseases. The repository includes comprehensive datasets, R
+scripts, and model outputs, covering the full research workflow from statistical
+analysis to model prediction plots.
 
-1. **Health Data:**
-   - **Disease Cases:** Municipality-level data on 21 fire-related and zoonotic/vector-borne diseases for Amazonian countries.
-   - **Population Data:** Population estimates at the municipality level, sourced from the WorldPop project and extrapolated annually.
+## **Folder Structure**
 
-2. **Environmental Data:**
-   - **Forest Fires:** Yearly fire data from MODIS Terra, detailing the frequency and extent of fires across the Amazon.
-   - **PM2.5 Concentrations:** AOD-calibrated PM2.5 estimates based on MODIS MAIAC data, calibrated with SEDAC PM2.5, including transboundary effects within a 500 km radius.
+The repository is organized as follows:
 
-3. **Land Use and Land Cover Data:**
-   - **Land Cover Classifications:** Data extracted from the MapBiomas Amazon mapping project, detailing forest and savanna cover across the Amazon.
-   - **Landscape Metrics:** Composition and configuration metrics (e.g., forest cover, fragmentation indices) for each municipality, calculated using Fragstats, R, and ArcGIS.
+| **Folder / File**                                                     | **Description**                                                                                        |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `data/`                                                               | Contains the input datasets used for the analyses.                                                     |
+| `data/incidence_data.csv`                                             | Main dataset combining health outcomes, land-use variables, fire-related pollution, and demographics.  |
+| `outputs/`                                                            | Contains all model outputs and figures.                                                                |
+| `outputs/figures/`                                                    | Folder where prediction plots and other figures are saved.                                             |
+| `1_models_fire-related.Rmd` to `1.9_models_rickettsia_occurrence.Rmd` | RMarkdown scripts for modeling the relationship between landscape variables and each specific disease. |
+| `2_legal_framework.Rmd`                                               | Script describing the legal framework of Indigenous land recognition across Amazonian countries.       |
+| `firepollutants_models.R`                                             | Additional modeling script focusing on fire pollutants (PM2.5).                                        |
+| `IT_conservation_health_amazon.Rproj`                                 | RStudio project file for workflow management.                                                          |
+| `README.md` / `README.html`                                           | Project documentation.                                                                                 |
 
-4. **Socioeconomic Indicators:**
-   - **Human Development Index (HDI):** Country-specific HDI data, adjusted for subnational variations, sourced from the Global Data Lab.
 
-5. **Codes for Statistical Analysis:**
-   - **Generalized Additive Models (GAMs):** R scripts implementing GAMs to assess the impact of PM2.5 on disease incidence, considering spatial and temporal autocorrelation.
-   - **Generalized Linear Mixed Models (GLMMs):** Models evaluating the influence of ITs, forest cover, and other landscape metrics on disease occurrence and incidence.
 
-6. **Model Validation and Diagnostics:**
-   - **Model Diagnostics:** Scripts for model evaluation using DHARMa, and visualization of predictions with ggeffects.
+## Data
 
-**How to Use:**
-- The repository is organized into directories for each major component (data, analysis, figures, scripts). Users can follow the R scripts in the `analysis/` directory to replicate the statistical models and generate the figures presented in the paper.
+A full master data aggregates disease variables used in the study.
 
-**Access and Citation:**
-- Table below shows summary of health data sources by country for the study. Where possible, data links are provided for public datasets. Proprietary or sensitive datasets not publicly available are described with instructions for how to request access.
+```{r}
+incidence_data <- read.csv(here("data", "incidence_data.csv"), header = T)
+knitr::kable(incidence_data %>% 
+  sample_n(30) %>% 
+  print(row.names = FALSE), booktabs = TRUE) %>%
+kable_styling(latex_options = "scale_down") %>%
+  column_spec(1:ncol(incidence_data), width = "auto")
+```
 
-| Country        | Spatial Scale | Disease Group               | Health Aspects Considered                                                                 | Temporal Scale | Source                                                          | Link to Download                                                                                                                                      |
-|----------------|--------------|-----------------------------|--------------------------------------------------------------------------------------------|----------------|-----------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Bolivia        | Municipality | Cardiovascular               | Cardiovascular                                                                              | 2001-2019      | Ministerio de Salud y Deportes                                    | [Link](https://estadisticas.minsalud.gob.bo/Default_Vigilancia.aspx)                                                                                   |
-|                |              | Respiratory                  | Pneumonia; respiratory symptomatic; Other acute upper respiratory tract infections         | 2001-2019      |                                                                 |                                                                                                                                                        |
-|                |              | Zoonotic and vector-borne     | Chagas, Malaria, Cutaneous leishmaniasis                                                    | 2001-2019      |                                                                 |                                                                                                                                                        |
-| Brazil         | Municipality | Cardiovascular               | Conduct disorders and cardiac arrhythmias; cerebral infarction; acute myocardial infarction; conjunctivitis and other conjunctival disorders | 2008-2023      | Brazilian Ministry of Health                                      | [Link](https://datasus.saude.gov.br/acesso-a-informacao/doencas-e-agravos-de-notificacao-de-2007-em-diante-sinan/)                                    |
-|                |              | Respiratory                  | Bronchial emphysema; Other chronic obstructive pulmonary diseases; pneumonia, pharyngitis; tonsillitis; laryngitis; tracheitis; acute bronchitis and bronchiolitis; other acute upper respiratory tract infections; neoplasm of trachea, bronchi, and lungs; pulmonary embolism | 2008-2023      |                                                                 |                                                                                                                                                        |
-|                |              | Zoonotic and vector-borne     | Chagas, Cutaneous leishmaniasis, visceral leishmaniasis, hantavirus, Malaria                | 2008-2023      |                                                                 |                                                                                                                                                        |
-| Colombia       | Municipality | Cardiovascular               | Conduction disorders and cardiac arrhythmias; conjunctivitis and other conjunctival disorders; cerebral infarction; acute myocardial infarction | 2007-2019      | Instituto Nacional de Salud                                       | [Link](https://portalsivigila.ins.gov.co/Paginas/Buscador.aspx)                                                                                        |
-|                |              | Respiratory                  | Acute bronchitis and bronchiolitis; Other chronic obstructive pulmonary diseases; pneumonia; pharyngitis; tonsillitis; laryngitis; tracheitis; pulmonary embolism | 2007-2019      |                                                                 |                                                                                                                                                        |
-|                |              | Zoonotic and vector-borne     | Chagas; Cutaneous leishmaniasis; Malaria; rickettsia                                       | 2007-2019      |                                                                 |                                                                                                                                                        |
-| Ecuador        | Paroquia      | Cardiovascular               | Cerebral infarction; Conduct disorders and cardiac arrhythmias; acute myocardial infarction | 2015, 2016, 2019, 2020 | Instituto Nacional de Estadistica y Censos                            | [Link](https://www.ecuadorencifras.gob.ec/camas-y-egresos-hospitalarios/)                                                                            |
-|                |              | Respiratory                  | Other acute upper respiratory tract infections; Bronchial emphysema; bronchitis; Other chronic obstructive pulmonary diseases; laryngitis; Neoplasm of trachea, bronchi, and lungs; pharyngitis; pneumonia; tonsillitis; tracheitis | 2015, 2016, 2019, 2021 |                                                                 |                                                                                                                                                        |
-|                |              | Zoonotic and vector-borne     | Chagas; Cutaneous leishmaniasis; Malaria; rickettsia; Visceral leishmaniasis                | 2015, 2016, 2019, 2022 |                                                                 |                                                                                                                                                        |
-| French Guiana  | Municipality | Cardiovascular               | Cerebral infarction; Conduct disorders and cardiac arrhythmias; conjunctivitis; myocardial; Neoplasm of trachea, bronchi, and lungs; Pulmonary embolism | 2006-2023      | Health data hub and Pôle des Centres Délocalisés de Prévention et de Soin – Centre Hospitalier de Cayenne, Guyane, France (available under request) | [Link](https://www.health-data-hub.fr/depot)                                                                                                         |
-|                |              | Respiratory                  | Other acute upper respiratory tract infections; Bronchial emphysema; Other chronic obstructive pulmonary diseases; laryngitis; pharyngitis; pneumonia; tonsillitis | 2006-2023      |                                                                 |                                                                                                                                                        |
-|                |              | Zoonotic and vector-borne     | Chagas; cutaneous leishmaniasis; hantavirus; Malaria; rickettsia                            | 2006-2023      |                                                                 |                                                                                                                                                        |
-| Peru           | Municipality | Cardiovascular               | Cerebral infarction; Conduct disorders and cardiac arrhythmias                              | 2002-2019      | Ministerio de Salud                                               | [Link 1](https://www.gob.pe/minsa), [Link 2](https://www.minsa.gob.pe/portada/transparencia/solicitud/frmformulario.asp)                              |
-|                |              | Respiratory                  | Other acute upper respiratory tract infections; Bronchial emphysema; Conduct disorders and cardiac arrhythmias; bronchitis; laryngitis; pharyngitis; pneumonia; tonsillitis; tracheitis | 2002-2019      |                                                                 |                                                                                                                                                        |
-|                |              | Zoonotic and vector-borne     | Chagas; Cutaneous leishmaniasis; hantavirus; Malaria; rickettsia                            | 2000-2019      |                                                                 |                                                                                                                                                        |
-| Suriname       | Country       | Cardiovascular               | -                                                                                           | -              | Medical mission (healthcare provider) - data not available online | [Link](https://www.medischezending.sr)                                                                                                                |
-|                |              | Respiratory                  | Respiratory                                                                                 | 2000-2019      |                                                                 |                                                                                                                                                        |
-|                |              | Zoonotic and vector-borne     | Cutaneous leishmaniasis; Malaria                                                            | 2000-2019      |                                                                 |                                                                                                                                                        |
-| Venezuela      | Paroquia      | Cardiovascular               | -                                                                                           | -              | Ministerio para el Poder Popular de la Salud (MPPS), Venezuela (compiled by Grillet et al., 2021) | Grillet ME, Moreno JE, Hernández-Villena JV, Vincenti-González MF, Noya O, Tami A, Paniz-Mondolfi A, Llewellyn M, Lowe R, Escalante AA, Conn JE. Malaria in Southern Venezuela: The hottest hotspot in Latin America. PLoS Negl Trop Dis. 2021 Jan 25;15(1):e0008211. doi: 10.1371/journal.pntd.0008211 |
-|                |              | Respiratory                  | -                                                                                           | -              |                                                                 |                                                                                                                                                        |
-|                |              | Zoonotic and vector-borne     | Malaria                                                                                     | 1995-2017      |                                                                 |                                                                                                                                                        |
+| Column Name                            | Description                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **country**                            | Country code
+|
+| **COD**                                | Unique code identifying each municipality (e.g., BO - Bolivia, BR - Brazil, CO - Colombia, etc.)                                                              |
+| **X**                                  | Longitude coordinate of the municipality centroid                                                      |
+| **Y**                                  | Latitude coordinate of the municipality centroid                                                       |
+| **year**                               | Year of data collection                                                                                |
+| **pop**                                | Population size of the municipality                                                                    |
+| **IDH**                                | Human Development Index (HDI)                                                      |
+| **health.cases**                       | Number of general health-related cases (aggregated diseases)                                           |
+| **health.incidence**                   | Incidence of general health-related cases per population                                               |
+| **fire.cases**                         | Number of reported fire-related disease cases                                                          |
+| **fire.incidence**                     | Fire-related disease incidence per population                                                          |
+| **cardiovascular.cases**               | Number of reported cardiovascular disease cases                                                        |
+| **cardiovascular.incidence**           | Cardiovascular disease incidence per population                                                        |
+| **respiratory.cases**                  | Number of reported respiratory disease cases                                                           |
+| **respiratory.incidence**              | Respiratory disease incidence per population                                                           |
+| **zoonotic.cases**                     | Number of reported zoonotic disease cases (aggregate of zoonotic diseases)                             |
+| **zoonotic.incidence**                 | Zoonotic disease incidence per population                                                              |
+| **malaria.cases**                      | Number of reported malaria cases                                                                       |
+| **malaria.incidence**                  | Malaria incidence per population                                                                       |
+| **cutaneous\_leishmaniasis.cases**     | Number of reported cutaneous leishmaniasis cases                                                       |
+| **cutaneous\_leishmaniasis.incidence** | Cutaneous leishmaniasis incidence per population                                                       |
+| **visceral\_leishmaniasis.occurrence** | Presence (1) or absence (0) of visceral leishmaniasis cases                                            |
+| **chagas.occurrence**                  | Presence (1) or absence (0) of Chagas disease cases                                                    |
+| **hantavirus.cases**                   | Number of reported hantavirus cases                                                                    |
+| **rickettsia.occurrence**              | Presence (1) or absence (0) of spotted fever group rickettsiosis (Rickettsia) cases                    |
+| **FS\_PLAND**                          | Percentage of forest and savanna land cover in the municipality (regardless of Indigenous Territories) |
+| **FS\_noIT**                           | Percentage of forest and savanna land cover outside Indigenous Territories                             |
+| **for\_PD**                            | Patch density (number of forest patches per area)                                                      |
+| **for\_ED**                            | Forest edge density (length of edges per area)                                                         |
+| **for\_AI**                            | Forest aggregation index (degree of clustering of forest patches)                                      |
+| **tot\_IT**                            | Percentage of municipality area covered by Indigenous Territories                                      |
+| **NOTackn\_IT**                        | Percentage of Indigenous Territories not officially recognized by the government                       |
+| **acknlgd\_IT**                        | Percentage of Indigenous Territories officially acknowledged by the government                         |
+| **pm25\_SUM**                          | Annual sum of fire-related particulate matter (PM2.5) per municipality                                 |
 
-- Please cite this repository if you use or adapt the code or data in your work.
+
+## Disease Models
+
+### **Modeling Routine**
+
+Each disease script (`1_models_fire-related.Rmd` to `1.9_models_rickettsia_occurrence.Rmd`) follows the same analytical routine:
+
+1. **Data Loading and Preprocessing**
+   Load `incidence_data.csv`, filter the relevant variables for each disease, and remove missing data.
+
+2. **Exploratory Data Analysis**
+
+   * Visualize disease incidence distributions.
+   * Apply log-transformations where needed (e.g., `log10(x+1)`).
+   * Summarize data with `skimr::skim()`.
+
+3. **Model Fitting**
+   Use **Generalized Additive Models (GAMs)** with spatial smoothing and year random effects.
+   The models test combinations of Indigenous Territories, forest cover, and landscape fragmentation as predictors.
+
+4. **Types of Models Tested**
+
+   | **Model Type**              | **Purpose**                                                              |
+   | --------------------------- | ------------------------------------------------------------------------ |
+   | **Null Model (Baseline)**   | Intercept + random effects for year and space (no landscape predictors). |
+   | **Single-Predictor Models** | Test one variable at a time (e.g., ITs, forest cover, fragmentation).    |
+   | **Double Additive Models**  | Combine two predictors (e.g., IT + forest, forest + fragmentation).      |
+   | **Triple Additive Models**  | Combine three predictors (IT + forest + fragmentation).                  |
+   | **Interaction Models**      | Include interaction terms (e.g., IT × forest, forest × fragmentation).   |
+
+5. **Model Selection**
+   Use **AIC comparison** (`AICtab()`) to select the best-fitting model.
+
+6. **Diagnostics**
+   Evaluate model fit with residual simulations using **DHARMa**.
+
+7. **Predictions & Visualization**
+   Generate predictions across varying levels of Indigenous Territories, forest cover, and fragmentation.
+   Visualize disease incidence trends and save figures to `outputs/figures/`.
+
+---
+
+### **Specific Models**
+
+| **Script**                                         | **Focus Disease / Outcome**                                   |
+| -------------------------------------------------- | ------------------------------------------------------------- |
+| `1_models_fire-related.Rmd`                        | Fire-related diseases (respiratory + cardiovascular combined) |
+| `1.2_models_cardiovascular.Rmd`                    | Cardiovascular diseases                                       |
+| `1.3_models_respiratory.Rmd`                       | Respiratory diseases                                          |
+| `1.4_models_zoonotic.Rmd`                          | Zoonotic diseases (aggregate)                                 |
+| `1.5_models_malaria.Rmd`                           | Malaria                                                       |
+| `1.6_models_cutaneous leishmaniasis.Rmd`           | Cutaneous leishmaniasis                                       |
+| `1.7_models_visceral_leishmaniasis_occurrence.Rmd` | Visceral leishmaniasis (presence/absence)                     |
+| `1.8_models_chagas_occurrence.Rmd`                 | Chagas disease (presence/absence)                             |
+| `1.9_models_rickettsia_occurrence.Rmd`             | Rickettsiosis (spotted fever group, presence/absence)         |
+
+---
+
+## Approach Summary
+
+The project models how the **extent of Indigenous Territories**, **forest cover (inside and outside ITs)**, and **landscape fragmentation metrics** influence disease incidence across Amazonian municipalities.
+Fire-related diseases also include **PM2.5 exposure** as an additional factor.
+
+Each model accounts for:
+
+* **Spatial autocorrelation** (random smoother on coordinates)
+* **Temporal autocorrelation** (random smoother on year)
+* **Population health baseline** via Human Development Index (HDI) as an offset

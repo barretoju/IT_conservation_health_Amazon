@@ -7,7 +7,6 @@
 
         <meta name="author" content="Julia R Barreto" />
     
-        <meta name="date" content="2024-08-28" />
     
     <title>Indigenous Tierritories (IT) Conservation &amp; Health in the Amazon (IT_conservation_health_amazon)</title>
 
@@ -1525,14 +1524,22 @@ Health in the Amazon (IT_conservation_health_amazon)</h1>
 &amp; Health in the Amazon (IT_conservation_health_amazon)</a></h2>
     <div id="toc">
       <ul>
-      <li><a href="#description" id="toc-description">Description:</a></li>
-      <li><a href="#contents" id="toc-contents">Contents:</a></li>
+      <li><a href="#repository-overview" id="toc-repository-overview">Repository Overview</a>
+      <ul>
+      <li><a href="#folder-structure" id="toc-folder-structure"><strong>Folder
+      Structure</strong></a></li>
+      <li><a href="#data" id="toc-data">Data</a></li>
+      <li><a href="#disease-models" id="toc-disease-models">Disease
+      Models</a></li>
+      <li><a href="#approach-summary" id="toc-approach-summary">Approach
+      Summary</a></li>
+      </ul></li>
       </ul>
     </div>
     <div id="postamble" data-toggle="wy-nav-shift" class="status">
                   <p class="author"><span class="glyphicon glyphicon-user"></span> Julia
 R Barreto</p>
-                        <p class="date"><span class="glyphicon glyphicon-calendar"></span> 2024-08-28</p>
+                        <p class="date"><span class="glyphicon glyphicon-calendar"></span> <code>r Sys.Date()</code></p>
           </div>
    </div>
      
@@ -1542,561 +1549,391 @@ R Barreto</p>
    
 <!-- Don't indent these lines or it will mess pre blocks indentation --> 
 <div id="main">
-<div id="description" class="section level1">
-<h1>Description:</h1>
+<div id="repository-overview" class="section level1">
+<h1>Repository Overview</h1>
 <p>This repository contains all data and code necessary to reproduce the
-analyses presented in the paper, “Indigenous territories are important
-for safeguarding human health in the Amazon Region.” The study explores
-the relationship between indigenous territories (ITs) and health
-outcomes across the Pan-Amazonian region, focusing on fire-related and
-zoonotic diseases. The repository includes comprehensive datasets, R
-scripts, and model outputs, covering the full research workflow from
-data management to statistical analysis and model validation.</p>
-</div>
-<div id="contents" class="section level1">
-<h1>Contents:</h1>
-<ol style="list-style-type: decimal">
-<li><strong>Health Data:</strong>
-<ul>
-<li><strong>Disease Cases:</strong> Municipality-level data on 21
-fire-related and zoonotic/vector-borne diseases for Amazonian
-countries.</li>
-<li><strong>Population Data:</strong> Population estimates at the
-municipality level, sourced from the WorldPop project and extrapolated
-annually.</li>
-</ul></li>
-<li><strong>Environmental Data:</strong>
-<ul>
-<li><strong>Forest Fires:</strong> Yearly fire data from MODIS Terra,
-detailing the frequency and extent of fires across the Amazon.</li>
-<li><strong>PM2.5 Concentrations:</strong> AOD-calibrated PM2.5
-estimates based on MODIS MAIAC data, calibrated with SEDAC PM2.5,
-including transboundary effects within a 500 km radius.</li>
-</ul></li>
-<li><strong>Land Use and Land Cover Data:</strong>
-<ul>
-<li><strong>Land Cover Classifications:</strong> Data extracted from the
-MapBiomas Amazon mapping project, detailing forest and savanna cover
-across the Amazon.</li>
-<li><strong>Landscape Metrics:</strong> Composition and configuration
-metrics (e.g., forest cover, fragmentation indices) for each
-municipality, calculated using Fragstats, R, and ArcGIS.</li>
-</ul></li>
-<li><strong>Socioeconomic Indicators:</strong>
-<ul>
-<li><strong>Human Development Index (HDI):</strong> Country-specific HDI
-data, adjusted for subnational variations, sourced from the Global Data
-Lab.</li>
-</ul></li>
-<li><strong>Codes for Statistical Analysis:</strong>
-<ul>
-<li><strong>Generalized Additive Models (GAMs):</strong> R scripts
-implementing GAMs to assess the impact of PM2.5 on disease incidence,
-considering spatial and temporal autocorrelation.</li>
-<li><strong>Generalized Linear Mixed Models (GLMMs):</strong> Models
-evaluating the influence of ITs, forest cover, and other landscape
-metrics on disease occurrence and incidence.</li>
-</ul></li>
-<li><strong>Model Validation and Diagnostics:</strong>
-<ul>
-<li><strong>Model Diagnostics:</strong> Scripts for model evaluation
-using DHARMa, and visualization of predictions with ggeffects.</li>
-</ul></li>
-</ol>
-<p><strong>How to Use:</strong> - The repository is organized into
-directories for each major component (data, analysis, figures, scripts).
-Users can follow the R scripts in the <code>analysis/</code> directory
-to replicate the statistical models and generate the figures presented
-in the paper.</p>
-<p><strong>Access and Citation:</strong> - Table below shows summary of
-health data sources by country for the study. Where possible, data links
-are provided for public datasets. Proprietary or sensitive datasets not
-publicly available are described with instructions for how to request
-access.</p>
+analyses presented in the paper, “Indigenous Territories can safeguard
+human health depending on the landscape structure and legal status”. The
+study explores the relationship between indigenous territories (ITs) and
+health outcomes across the Pan-Amazonian region, focusing on
+fire-related and zoonotic diseases. The repository includes
+comprehensive datasets, R scripts, and model outputs, covering the full
+research workflow from statistical analysis to model prediction
+plots.</p>
+<div id="folder-structure" class="section level2">
+<h2><strong>Folder Structure</strong></h2>
+<p>The repository is organized as follows:</p>
 <table>
 <colgroup>
-<col width="12%" />
-<col width="12%" />
-<col width="12%" />
-<col width="18%" />
-<col width="12%" />
-<col width="12%" />
-<col width="21%" />
+<col width="40%" />
+<col width="59%" />
 </colgroup>
 <thead>
 <tr class="header">
-<th>Country</th>
-<th>Spatial Scale</th>
-<th>Disease Group</th>
-<th>Health Aspects Considered</th>
-<th>Temporal Scale</th>
-<th>Source</th>
-<th>Link to Download</th>
+<th><strong>Folder / File</strong></th>
+<th><strong>Description</strong></th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>Bolivia</td>
-<td>Municipality</td>
-<td>Cardiovascular</td>
-<td>Cardiovascular</td>
-<td>2001-2019</td>
-<td>Ministerio de Salud y Deportes</td>
-<td><a href="https://estadisticas.minsalud.gob.bo/Default_Vigilancia.aspx">Link</a></td>
+<td><code>data/</code></td>
+<td>Contains the input datasets used for the analyses.</td>
 </tr>
 <tr class="even">
-<td></td>
-<td></td>
-<td>Respiratory</td>
-<td>Pneumonia; respiratory symptomatic; Other acute upper respiratory
-tract infections</td>
-<td>2001-2019</td>
-<td></td>
-<td></td>
+<td><code>data/incidence_data.csv</code></td>
+<td>Main dataset combining health outcomes, land-use variables,
+fire-related pollution, and demographics.</td>
 </tr>
 <tr class="odd">
-<td></td>
-<td></td>
-<td>Zoonotic and vector-borne</td>
-<td>Chagas, Malaria, Cutaneous leishmaniasis</td>
-<td>2001-2019</td>
-<td></td>
-<td></td>
+<td><code>outputs/</code></td>
+<td>Contains all model outputs and figures.</td>
 </tr>
 <tr class="even">
-<td>Brazil</td>
-<td>Municipality</td>
-<td>Cardiovascular</td>
-<td>Conduct disorders and cardiac arrhythmias; cerebral infarction;
-acute myocardial infarction; conjunctivitis and other conjunctival
-disorders</td>
-<td>2008-2023</td>
-<td>Brazilian Ministry of Health</td>
-<td><a href="https://datasus.saude.gov.br/acesso-a-informacao/doencas-e-agravos-de-notificacao-de-2007-em-diante-sinan/">Link</a></td>
+<td><code>outputs/figures/</code></td>
+<td>Folder where prediction plots and other figures are saved.</td>
 </tr>
 <tr class="odd">
-<td></td>
-<td></td>
-<td>Respiratory</td>
-<td>Bronchial emphysema; Other chronic obstructive pulmonary diseases;
-pneumonia, pharyngitis; tonsillitis; laryngitis; tracheitis; acute
-bronchitis and bronchiolitis; other acute upper respiratory tract
-infections; neoplasm of trachea, bronchi, and lungs; pulmonary
-embolism</td>
-<td>2008-2023</td>
-<td></td>
-<td></td>
+<td><code>1_models_fire-related.Rmd</code> to
+<code>1.9_models_rickettsia_occurrence.Rmd</code></td>
+<td>RMarkdown scripts for modeling the relationship between landscape
+variables and each specific disease.</td>
 </tr>
 <tr class="even">
-<td></td>
-<td></td>
-<td>Zoonotic and vector-borne</td>
-<td>Chagas, Cutaneous leishmaniasis, visceral leishmaniasis, hantavirus,
-Malaria</td>
-<td>2008-2023</td>
-<td></td>
-<td></td>
+<td><code>2_legal_framework.Rmd</code></td>
+<td>Script describing the legal framework of Indigenous land recognition
+across Amazonian countries.</td>
 </tr>
 <tr class="odd">
-<td>Colombia</td>
-<td>Municipality</td>
-<td>Cardiovascular</td>
-<td>Conduction disorders and cardiac arrhythmias; conjunctivitis and
-other conjunctival disorders; cerebral infarction; acute myocardial
-infarction</td>
-<td>2007-2019</td>
-<td>Instituto Nacional de Salud</td>
-<td><a href="https://portalsivigila.ins.gov.co/Paginas/Buscador.aspx">Link</a></td>
+<td><code>firepollutants_models.R</code></td>
+<td>Additional modeling script focusing on fire pollutants (PM2.5).</td>
 </tr>
 <tr class="even">
-<td></td>
-<td></td>
-<td>Respiratory</td>
-<td>Acute bronchitis and bronchiolitis; Other chronic obstructive
-pulmonary diseases; pneumonia; pharyngitis; tonsillitis; laryngitis;
-tracheitis; pulmonary embolism</td>
-<td>2007-2019</td>
-<td></td>
-<td></td>
+<td><code>IT_conservation_health_amazon.Rproj</code></td>
+<td>RStudio project file for workflow management.</td>
 </tr>
 <tr class="odd">
-<td></td>
-<td></td>
-<td>Zoonotic and vector-borne</td>
-<td>Chagas; Cutaneous leishmaniasis; Malaria; rickettsia</td>
-<td>2007-2019</td>
-<td></td>
-<td></td>
-</tr>
-<tr class="even">
-<td>Ecuador</td>
-<td>Paroquia</td>
-<td>Cardiovascular</td>
-<td>Cerebral infarction; Conduct disorders and cardiac arrhythmias;
-acute myocardial infarction</td>
-<td>2015, 2016, 2019, 2020</td>
-<td>Instituto Nacional de Estadistica y Censos</td>
-<td><a href="https://www.ecuadorencifras.gob.ec/camas-y-egresos-hospitalarios/">Link</a></td>
-</tr>
-<tr class="odd">
-<td></td>
-<td></td>
-<td>Respiratory</td>
-<td>Other acute upper respiratory tract infections; Bronchial emphysema;
-bronchitis; Other chronic obstructive pulmonary diseases; laryngitis;
-Neoplasm of trachea, bronchi, and lungs; pharyngitis; pneumonia;
-tonsillitis; tracheitis</td>
-<td>2015, 2016, 2019, 2021</td>
-<td></td>
-<td></td>
-</tr>
-<tr class="even">
-<td></td>
-<td></td>
-<td>Zoonotic and vector-borne</td>
-<td>Chagas; Cutaneous leishmaniasis; Malaria; rickettsia; Visceral
-leishmaniasis</td>
-<td>2015, 2016, 2019, 2022</td>
-<td></td>
-<td></td>
-</tr>
-<tr class="odd">
-<td>French Guiana</td>
-<td>Municipality</td>
-<td>Cardiovascular</td>
-<td>Cerebral infarction; Conduct disorders and cardiac arrhythmias;
-conjunctivitis; myocardial; Neoplasm of trachea, bronchi, and lungs;
-Pulmonary embolism</td>
-<td>2006-2023</td>
-<td>Health data hub and Pôle des Centres Délocalisés de Prévention et de
-Soin – Centre Hospitalier de Cayenne, Guyane, France (available under
-request)</td>
-<td><a href="https://www.health-data-hub.fr/depot">Link</a></td>
-</tr>
-<tr class="even">
-<td></td>
-<td></td>
-<td>Respiratory</td>
-<td>Other acute upper respiratory tract infections; Bronchial emphysema;
-Other chronic obstructive pulmonary diseases; laryngitis; pharyngitis;
-pneumonia; tonsillitis</td>
-<td>2006-2023</td>
-<td></td>
-<td></td>
-</tr>
-<tr class="odd">
-<td></td>
-<td></td>
-<td>Zoonotic and vector-borne</td>
-<td>Chagas; cutaneous leishmaniasis; hantavirus; Malaria;
-rickettsia</td>
-<td>2006-2023</td>
-<td></td>
-<td></td>
-</tr>
-<tr class="even">
-<td>Peru</td>
-<td>Municipality</td>
-<td>Cardiovascular</td>
-<td>Cerebral infarction; Conduct disorders and cardiac arrhythmias</td>
-<td>2002-2019</td>
-<td>Ministerio de Salud</td>
-<td><a href="https://www.gob.pe/minsa">Link 1</a>, <a href="https://www.minsa.gob.pe/portada/transparencia/solicitud/frmformulario.asp">Link
-2</a></td>
-</tr>
-<tr class="odd">
-<td></td>
-<td></td>
-<td>Respiratory</td>
-<td>Other acute upper respiratory tract infections; Bronchial emphysema;
-Conduct disorders and cardiac arrhythmias; bronchitis; laryngitis;
-pharyngitis; pneumonia; tonsillitis; tracheitis</td>
-<td>2002-2019</td>
-<td></td>
-<td></td>
-</tr>
-<tr class="even">
-<td></td>
-<td></td>
-<td>Zoonotic and vector-borne</td>
-<td>Chagas; Cutaneous leishmaniasis; hantavirus; Malaria;
-rickettsia</td>
-<td>2000-2019</td>
-<td></td>
-<td></td>
-</tr>
-<tr class="odd">
-<td>Suriname</td>
-<td>Country</td>
-<td>Cardiovascular</td>
-<td>-</td>
-<td>-</td>
-<td>Medical mission (healthcare provider) - data not available
-online</td>
-<td><a href="https://www.medischezending.sr">Link</a></td>
-</tr>
-<tr class="even">
-<td></td>
-<td></td>
-<td>Respiratory</td>
-<td>Respiratory</td>
-<td>2000-2019</td>
-<td></td>
-<td></td>
-</tr>
-<tr class="odd">
-<td></td>
-<td></td>
-<td>Zoonotic and vector-borne</td>
-<td>Cutaneous leishmaniasis; Malaria</td>
-<td>2000-2019</td>
-<td></td>
-<td></td>
-</tr>
-<tr class="even">
-<td>Venezuela</td>
-<td>Paroquia</td>
-<td>Cardiovascular</td>
-<td>-</td>
-<td>-</td>
-<td>Ministerio para el Poder Popular de la Salud (MPPS), Venezuela
-(compiled by Grillet et al., 2021)</td>
-<td>Grillet ME, Moreno JE, Hernández-Villena JV, Vincenti-González MF,
-Noya O, Tami A, Paniz-Mondolfi A, Llewellyn M, Lowe R, Escalante AA,
-Conn JE. Malaria in Southern Venezuela: The hottest hotspot in Latin
-America. PLoS Negl Trop Dis. 2021 Jan 25;15(1):e0008211. doi:
-10.1371/journal.pntd.0008211</td>
-</tr>
-<tr class="odd">
-<td></td>
-<td></td>
-<td>Respiratory</td>
-<td>-</td>
-<td>-</td>
-<td></td>
-<td></td>
-</tr>
-<tr class="even">
-<td></td>
-<td></td>
-<td>Zoonotic and vector-borne</td>
-<td>Malaria</td>
-<td>1995-2017</td>
-<td></td>
-<td></td>
+<td><code>README.md</code> / <code>README.html</code></td>
+<td>Project documentation.</td>
 </tr>
 </tbody>
 </table>
-<ul>
-<li>Please cite this repository if you use or adapt the code or data in
-your work.</li>
-</ul>
-<p>All the data is compiled into one master spreadsheet called
-“combined_data.csv” into data&gt;processed folder, that also contains
-it’s metadata, as follows:</p>
+</div>
+<div id="data" class="section level2">
+<h2>Data</h2>
+<p>A full master data aggregates disease variables used in the
+study.</p>
+<p><code>{r} incidence_data &lt;- read.csv(here(&quot;data&quot;, &quot;incidence_data.csv&quot;), header = T) knitr::kable(incidence_data %&gt;%    sample_n(30) %&gt;%    print(row.names = FALSE), booktabs = TRUE) %&gt;% kable_styling(latex_options = &quot;scale_down&quot;) %&gt;%   column_spec(1:ncol(incidence_data), width = &quot;auto&quot;)</code></p>
 <table>
 <colgroup>
-<col width="22%" />
-<col width="77%" />
+<col width="27%" />
+<col width="72%" />
 </colgroup>
 <thead>
 <tr class="header">
-<th>Column_Name</th>
+<th>Column Name</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>country</td>
-<td>Country code (BO- Bolivia, BR- Brazil, CO- Colombia, etc)</td>
+<td><strong>country</strong></td>
+<td>Country code</td>
 </tr>
 <tr class="even">
-<td>COD</td>
-<td>Specific identifier code for municipalities within the country</td>
+<td></td>
+<td></td>
 </tr>
 <tr class="odd">
-<td>year</td>
-<td>Year of the data entry</td>
+<td><strong>COD</strong></td>
+<td>Unique code identifying each municipality (e.g., BO - Bolivia, BR -
+Brazil, CO - Colombia, etc.)</td>
 </tr>
 <tr class="even">
-<td>health</td>
-<td>General health indicator</td>
+<td><strong>X</strong></td>
+<td>Longitude coordinate of the municipality centroid</td>
 </tr>
 <tr class="odd">
-<td>chagas</td>
-<td>Number of reported cases of Chagas disease</td>
+<td><strong>Y</strong></td>
+<td>Latitude coordinate of the municipality centroid</td>
 </tr>
 <tr class="even">
-<td>hantavirus</td>
-<td>Number of reported cases of Hantavirus</td>
+<td><strong>year</strong></td>
+<td>Year of data collection</td>
 </tr>
 <tr class="odd">
-<td>cutaneous_leishmaniasis</td>
-<td>Number of reported cases of cutaneous leishmaniasis</td>
+<td><strong>pop</strong></td>
+<td>Population size of the municipality</td>
 </tr>
 <tr class="even">
-<td>visceral_leishmaniasis</td>
-<td>Number of reported cases of visceral leishmaniasis</td>
+<td><strong>IDH</strong></td>
+<td>Human Development Index (HDI)</td>
 </tr>
 <tr class="odd">
-<td>rickettsia</td>
-<td>Number of reported cases of Rickettsia</td>
+<td><strong>health.cases</strong></td>
+<td>Number of general health-related cases (aggregated diseases)</td>
 </tr>
 <tr class="even">
-<td>malaria</td>
-<td>Number of reported cases of Malaria</td>
+<td><strong>health.incidence</strong></td>
+<td>Incidence of general health-related cases per population</td>
 </tr>
 <tr class="odd">
-<td>zoonotic</td>
-<td>Number of reported zoonotic diseases</td>
+<td><strong>fire.cases</strong></td>
+<td>Number of reported fire-related disease cases</td>
 </tr>
 <tr class="even">
-<td>n_zoo</td>
-<td>Number of zoonotic diseases</td>
+<td><strong>fire.incidence</strong></td>
+<td>Fire-related disease incidence per population</td>
 </tr>
 <tr class="odd">
-<td>fire_related</td>
-<td>Number of reported cases of diseases related to fire</td>
+<td><strong>cardiovascular.cases</strong></td>
+<td>Number of reported cardiovascular disease cases</td>
 </tr>
 <tr class="even">
-<td>n_fire</td>
-<td>Number of fire-related diseases</td>
+<td><strong>cardiovascular.incidence</strong></td>
+<td>Cardiovascular disease incidence per population</td>
 </tr>
 <tr class="odd">
-<td>acute</td>
-<td>Number of reported cases of acute diseases</td>
+<td><strong>respiratory.cases</strong></td>
+<td>Number of reported respiratory disease cases</td>
 </tr>
 <tr class="even">
-<td>n_acute</td>
-<td>Number of acute diseases</td>
+<td><strong>respiratory.incidence</strong></td>
+<td>Respiratory disease incidence per population</td>
 </tr>
 <tr class="odd">
-<td>chronic</td>
-<td>Number of reported cases of chronic conditions</td>
+<td><strong>zoonotic.cases</strong></td>
+<td>Number of reported zoonotic disease cases (aggregate of zoonotic
+diseases)</td>
 </tr>
 <tr class="even">
-<td>n_chronic</td>
-<td>Number of chronic conditions</td>
+<td><strong>zoonotic.incidence</strong></td>
+<td>Zoonotic disease incidence per population</td>
 </tr>
 <tr class="odd">
-<td>respiratory</td>
-<td>Number of reported cases of respiratory conditions</td>
+<td><strong>malaria.cases</strong></td>
+<td>Number of reported malaria cases</td>
 </tr>
 <tr class="even">
-<td>n_resp</td>
-<td>Number of respiratory conditions</td>
+<td><strong>malaria.incidence</strong></td>
+<td>Malaria incidence per population</td>
 </tr>
 <tr class="odd">
-<td>cardiovascular</td>
-<td>Number of reported cases of cardiovascular conditions</td>
+<td><strong>cutaneous_leishmaniasis.cases</strong></td>
+<td>Number of reported cutaneous leishmaniasis cases</td>
 </tr>
 <tr class="even">
-<td>n_card</td>
-<td>Number of cardiovascular conditions</td>
+<td><strong>cutaneous_leishmaniasis.incidence</strong></td>
+<td>Cutaneous leishmaniasis incidence per population</td>
 </tr>
 <tr class="odd">
-<td>pop</td>
-<td>Population</td>
+<td><strong>visceral_leishmaniasis.occurrence</strong></td>
+<td>Presence (1) or absence (0) of visceral leishmaniasis cases</td>
 </tr>
 <tr class="even">
-<td>IDH</td>
-<td>Human Development Index</td>
+<td><strong>chagas.occurrence</strong></td>
+<td>Presence (1) or absence (0) of Chagas disease cases</td>
 </tr>
 <tr class="odd">
-<td>for_PLAND</td>
-<td>Forest percentage land descriptor</td>
+<td><strong>hantavirus.cases</strong></td>
+<td>Number of reported hantavirus cases</td>
 </tr>
 <tr class="even">
-<td>for_PD</td>
-<td>Patch density</td>
+<td><strong>rickettsia.occurrence</strong></td>
+<td>Presence (1) or absence (0) of spotted fever group rickettsiosis
+(Rickettsia) cases</td>
 </tr>
 <tr class="odd">
-<td>for_ED</td>
-<td>Forest edge density</td>
+<td><strong>FS_PLAND</strong></td>
+<td>Percentage of forest and savanna land cover in the municipality
+(regardless of Indigenous Territories)</td>
 </tr>
 <tr class="even">
-<td>for_ENN_MN</td>
-<td>Forest mean Euclidean nearest neighbor distance</td>
+<td><strong>FS_noIT</strong></td>
+<td>Percentage of forest and savanna land cover outside Indigenous
+Territories</td>
 </tr>
 <tr class="odd">
-<td>for_AI</td>
-<td>Forest aggregation index</td>
+<td><strong>for_PD</strong></td>
+<td>Patch density (number of forest patches per area)</td>
 </tr>
 <tr class="even">
-<td>savanna_PLAND</td>
-<td>Savanna percentage land descriptor</td>
+<td><strong>for_ED</strong></td>
+<td>Forest edge density (length of edges per area)</td>
 </tr>
 <tr class="odd">
-<td>notforest_PLAND</td>
-<td>Non-forest natural formation percent land descriptor</td>
+<td><strong>for_AI</strong></td>
+<td>Forest aggregation index (degree of clustering of forest
+patches)</td>
 </tr>
 <tr class="even">
-<td>FS_PLAND</td>
-<td>Forest and Savanna percentage land descriptor outside indigenous
-territories</td>
+<td><strong>tot_IT</strong></td>
+<td>Percentage of municipality area covered by Indigenous
+Territories</td>
 </tr>
 <tr class="odd">
-<td>tot_IT</td>
-<td>Total percentage of area of indigenous territories</td>
+<td><strong>NOTackn_IT</strong></td>
+<td>Percentage of Indigenous Territories not officially recognized by
+the government</td>
 </tr>
 <tr class="even">
-<td>NOTackn_IT</td>
-<td>Indigenous territories that are not officially acknowledged by
+<td><strong>acknlgd_IT</strong></td>
+<td>Percentage of Indigenous Territories officially acknowledged by the
 government</td>
 </tr>
 <tr class="odd">
-<td>acknlgd_IT</td>
-<td>Government acknowledged indigenous territories</td>
-</tr>
-<tr class="even">
-<td>IT_presence</td>
-<td>Indicates presence (<code>yes_IT</code>) or absence
-(<code>no_IT</code>) of indigenous territories based on
-<code>tot_IT</code> value</td>
-</tr>
-<tr class="odd">
-<td>IT_recognition</td>
-<td>Indicates recognition category of indigenous territories:
-<code>acknowledged_only</code>, <code>not_acknowledged_only</code>,
-<code>both</code>, or <code>none</code> based on <code>acknlgd_IT</code>
-and <code>NOTackn_IT</code> values</td>
-</tr>
-<tr class="even">
-<td>FS_noIT</td>
-<td>Savanna and forest area outside indigenous territories</td>
-</tr>
-<tr class="odd">
-<td>habitat_noIT</td>
-<td>Natural habitat including (forest, savanna and non-forest natural
-formation) outside indigenous territories</td>
-</tr>
-<tr class="even">
-<td>pm25_SUM</td>
-<td>Annual sum of fire pollutant particular matter (PM2.5) per
+<td><strong>pm25_SUM</strong></td>
+<td>Annual sum of fire-related particulate matter (PM2.5) per
 municipality</td>
-</tr>
-<tr class="odd">
-<td>fire_MIN</td>
-<td>Minimum fire incidence</td>
-</tr>
-<tr class="even">
-<td>fire_MAX</td>
-<td>Maximum fire incidence</td>
-</tr>
-<tr class="odd">
-<td>fire_MEAN</td>
-<td>Mean fire incidence</td>
-</tr>
-<tr class="even">
-<td>fire_COUNT</td>
-<td>Count of fire incidences</td>
-</tr>
-<tr class="odd">
-<td>fire_SUM</td>
-<td>Sum of fire incidences</td>
 </tr>
 </tbody>
 </table>
+</div>
+<div id="disease-models" class="section level2">
+<h2>Disease Models</h2>
+<div id="modeling-routine" class="section level3">
+<h3><strong>Modeling Routine</strong></h3>
+<p>Each disease script (<code>1_models_fire-related.Rmd</code> to
+<code>1.9_models_rickettsia_occurrence.Rmd</code>) follows the same
+analytical routine:</p>
+<ol style="list-style-type: decimal">
+<li><p><strong>Data Loading and Preprocessing</strong> Load
+<code>incidence_data.csv</code>, filter the relevant variables for each
+disease, and remove missing data.</p></li>
+<li><p><strong>Exploratory Data Analysis</strong></p>
+<ul>
+<li>Visualize disease incidence distributions.</li>
+<li>Apply log-transformations where needed (e.g.,
+<code>log10(x+1)</code>).</li>
+<li>Summarize data with <code>skimr::skim()</code>.</li>
+</ul></li>
+<li><p><strong>Model Fitting</strong> Use <strong>Generalized Additive
+Models (GAMs)</strong> with spatial smoothing and year random effects.
+The models test combinations of Indigenous Territories, forest cover,
+and landscape fragmentation as predictors.</p></li>
+<li><p><strong>Types of Models Tested</strong></p>
+<table>
+<colgroup>
+<col width="27%" />
+<col width="72%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><strong>Model Type</strong></th>
+<th><strong>Purpose</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Null Model (Baseline)</strong></td>
+<td>Intercept + random effects for year and space (no landscape
+predictors).</td>
+</tr>
+<tr class="even">
+<td><strong>Single-Predictor Models</strong></td>
+<td>Test one variable at a time (e.g., ITs, forest cover,
+fragmentation).</td>
+</tr>
+<tr class="odd">
+<td><strong>Double Additive Models</strong></td>
+<td>Combine two predictors (e.g., IT + forest, forest +
+fragmentation).</td>
+</tr>
+<tr class="even">
+<td><strong>Triple Additive Models</strong></td>
+<td>Combine three predictors (IT + forest + fragmentation).</td>
+</tr>
+<tr class="odd">
+<td><strong>Interaction Models</strong></td>
+<td>Include interaction terms (e.g., IT × forest, forest ×
+fragmentation).</td>
+</tr>
+</tbody>
+</table></li>
+<li><p><strong>Model Selection</strong> Use <strong>AIC
+comparison</strong> (<code>AICtab()</code>) to select the best-fitting
+model.</p></li>
+<li><p><strong>Diagnostics</strong> Evaluate model fit with residual
+simulations using <strong>DHARMa</strong>.</p></li>
+<li><p><strong>Predictions &amp; Visualization</strong> Generate
+predictions across varying levels of Indigenous Territories, forest
+cover, and fragmentation. Visualize disease incidence trends and save
+figures to <code>outputs/figures/</code>.</p></li>
+</ol>
+<hr />
+</div>
+<div id="specific-models" class="section level3">
+<h3><strong>Specific Models</strong></h3>
+<table>
+<colgroup>
+<col width="45%" />
+<col width="54%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><strong>Script</strong></th>
+<th><strong>Focus Disease / Outcome</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>1_models_fire-related.Rmd</code></td>
+<td>Fire-related diseases (respiratory + cardiovascular combined)</td>
+</tr>
+<tr class="even">
+<td><code>1.2_models_cardiovascular.Rmd</code></td>
+<td>Cardiovascular diseases</td>
+</tr>
+<tr class="odd">
+<td><code>1.3_models_respiratory.Rmd</code></td>
+<td>Respiratory diseases</td>
+</tr>
+<tr class="even">
+<td><code>1.4_models_zoonotic.Rmd</code></td>
+<td>Zoonotic diseases (aggregate)</td>
+</tr>
+<tr class="odd">
+<td><code>1.5_models_malaria.Rmd</code></td>
+<td>Malaria</td>
+</tr>
+<tr class="even">
+<td><code>1.6_models_cutaneous leishmaniasis.Rmd</code></td>
+<td>Cutaneous leishmaniasis</td>
+</tr>
+<tr class="odd">
+<td><code>1.7_models_visceral_leishmaniasis_occurrence.Rmd</code></td>
+<td>Visceral leishmaniasis (presence/absence)</td>
+</tr>
+<tr class="even">
+<td><code>1.8_models_chagas_occurrence.Rmd</code></td>
+<td>Chagas disease (presence/absence)</td>
+</tr>
+<tr class="odd">
+<td><code>1.9_models_rickettsia_occurrence.Rmd</code></td>
+<td>Rickettsiosis (spotted fever group, presence/absence)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</div>
+</div>
+<div id="approach-summary" class="section level2">
+<h2>Approach Summary</h2>
+<p>The project models how the <strong>extent of Indigenous
+Territories</strong>, <strong>forest cover (inside and outside
+ITs)</strong>, and <strong>landscape fragmentation metrics</strong>
+influence disease incidence across Amazonian municipalities.
+Fire-related diseases also include <strong>PM2.5 exposure</strong> as an
+additional factor.</p>
+<p>Each model accounts for:</p>
+<ul>
+<li><strong>Spatial autocorrelation</strong> (random smoother on
+coordinates)</li>
+<li><strong>Temporal autocorrelation</strong> (random smoother on
+year)</li>
+<li><strong>Population health baseline</strong> via Human Development
+Index (HDI) as an offset</li>
+</ul>
+</div>
 </div>
 </div>
 
