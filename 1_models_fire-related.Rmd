@@ -377,14 +377,14 @@ new_data$conf.high <- 10^(predictions$fit + 1.96 * predictions$se.fit) - 1
     y = "Fire-related\n diseases' incidence",
     color = "Forest cover outside IT",
     fill = "Forest cover outside IT",
-    linetype = "Forest cover outside IT"
+    linetype= "Forest cover outside IT"
   ) +
   theme(legend.position = "top",
               text = element_text(size = 16),
         axis.title.y = element_text(size = 16, lineheight = 1.1),
         axis.title.x = element_text(size = 16)) +
-  scale_color_manual(values = c("#66c2a4", "#238b45", "#00441b"), labels = c("15%", "45%", "75%")) +
-  scale_fill_manual(values = c("#66c2a4", "#238b45", "#00441b"), labels = c("15%", "45%", "75%")) +
+  scale_color_manual(values = c("#66c2a4", "#238b45", "#00441b")) +
+  scale_fill_manual(values = c("#66c2a4", "#238b45", "#00441b")) +
     scale_linetype_manual(values = c("dotted", "longdash", "solid")) +
   facet_wrap(~ for_ED, labeller = as_labeller(c("10" = "Low Edge Density (10)", 
                                                 "25" = "Medium Edge Density (25)", 

@@ -24,6 +24,8 @@ zoonotic diseases. The repository includes comprehensive datasets, R
 scripts, and model outputs, covering the full research workflow from statistical
 analysis to model prediction plots.
 
+Analyses and data is part of the work: nature.com/articles/s43247-025-02620-7
+
 ## **Folder Structure**
 
 The repository is organized as follows:
